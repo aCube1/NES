@@ -1,0 +1,60 @@
+BasedOnStyle: LLVM
+Language: Cpp
+Standard: c++17
+IndentWidth: 4
+TabWidth: 4
+ColumnLimit: 90
+UseTab: Always
+UseCRLF: false
+#ContinuationIndentWidth: 4
+
+AlignAfterOpenBracket: BlockIndent
+#AlignArrayOfStructures: Right
+AlignEscapedNewlines: Left
+AlignConsecutiveMacros: AcrossEmptyLines
+AlignOperands: AlignAfterOperator
+AlignTrailingComments: true
+
+AllowAllParametersOfDeclarationOnNextLine: true
+AllowAllArgumentsOnNextLine: true
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortBlocksOnASingleLine: Empty
+
+AlwaysBreakAfterReturnType: None
+AlwaysBreakTemplateDeclarations: Yes
+BinPackArguments: true
+BinPackParameters: false
+BreakBeforeBinaryOperators: None
+BreakBeforeTernaryOperators: true
+BreakConstructorInitializers: BeforeComma
+
+EmptyLineBeforeAccessModifier: LogicalBlock
+FixNamespaceComments: true
+AccessModifierOffset: 1
+
+IndentAccessModifiers: true
+IndentPPDirectives: AfterHash
+IndentWrappedFunctionNames: true
+NamespaceIndentation: All
+
+Cpp11BracedListStyle: false
+MaxEmptyLinesToKeep: 1
+ReflowComments: true
+SeparateDefinitionBlocks: Always
+
+SortUsingDeclarations: true
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+
+SpaceAfterTemplateKeyword: true
+SpaceBeforeCpp11BracedList: true
+SpacesBeforeTrailingComments: 1
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
+
+ReferenceAlignment: Left
+PointerAlignment: Right
+
+PenaltyBreakAssignment: 1000
+PenaltyReturnTypeOnItsOwnLine: 1000
