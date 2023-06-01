@@ -3,29 +3,35 @@
 
 #include "types.hpp"
 
-#include <ios>
+#include <array>
 #include <vector>
 
 namespace nes {
 	class CPU {
 		public:
 			CPU() = default;
+			CPU(const CPU&) = delete;
+			CPU& operator=(const CPU&) = delete;
 			~CPU() = default;
 
-			void interpret(const std::vector<u8>& program);
+			void load(const std::vector<u8>& program); // TODO: Proper mapper.
+			void run();
+			void reset();
 
+			// TODO: Move functions to a Bus.
+			void memWrite(u16 addr, u8 data);
+			[[nodiscard]] u16 memRead(u16 addr) const;
+
+			void memWrite16(u16 addr, u16 data);
+			[[nodiscard]] u16 memRead16(u16 addr) const;
+
+			// NOTE: Maybe this is unnecessary.
 			[[nodiscard]] u8 getStatus() const;
 			[[nodiscard]] u8 getA() const;
 			[[nodiscard]] u8 getX() const;
 			[[nodiscard]] u8 getY() const;
 
 		private:
-			u16 m_pc { 0x0000 };  // Program Counter
-			u8 m_status { 0x00 }; // Status Register
-			u8 m_reg_a { 0x00 };  // Accumulator Register
-			u8 m_reg_x { 0x00 };  // X Register
-			u8 m_reg_y { 0x00 };  // Y Register
-
 			enum Flags : u8 {
 				C = (1 << 0), // Carry bit.
 				Z = (1 << 1), // Zero
@@ -39,6 +45,14 @@ namespace nes {
 
 			[[nodiscard]] u8 getFlag(Flags flag) const;
 			void setFlag(Flags flag, bool v);
+
+			u16 m_pc { 0x0000 };  // Program Counter
+			u8 m_status { 0x00 }; // Status Register
+			u8 m_reg_a { 0x00 };  // Accumulator Register
+			u8 m_reg_x { 0x00 };  // X Register
+			u8 m_reg_y { 0x00 };  // Y Register
+
+			std::array<u8, 0xffff> m_ram {}; // RAM memory array.
 	};
 } // namespace nes
 
