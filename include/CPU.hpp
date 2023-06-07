@@ -4,32 +4,60 @@
 #include "types.hpp"
 
 #include <array>
+#include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace nes {
+	enum class AddressingMode {
+		IMM, // Immediate     : #VALUE
+		IMP, // Implied       : No operand
+		ACC, // Accumulator   : No operand
+		REL, // Relative      : $ADDR8 used with Branch Instructions
+		ZP0, // ZeroPage      : $ADDR8
+		ZPX, // ZeroPage, X   : $ADDR8 + X
+		ZPY, // ZeroPage, Y   : $ADDR8 + Y
+		ABS, // Absolute      : $ADDR16
+		ABX, // Absolute, X   : $ADDR16 + X
+		ABY, // Absolute, Y   : $ADDR16 + Y
+		IND, // Indirect      : ($ADDR16) used only with JMP
+		IZX, // (Indirect, X) : ($ADDR16 + X)
+		IZY, // (Indirect), Y : ($ADDR16) + Y
+	};
+
 	class CPU {
 		public:
-			CPU() = default;
+			CPU();
 			CPU(const CPU&) = delete;
 			CPU& operator=(const CPU&) = delete;
 			~CPU() = default;
 
 			void load(const std::vector<u8>& program); // TODO: Proper mapper.
-			void run();
+			void clock();
+			void step();
 			void reset();
+			void irq();
+			void nmi();
 
-			// TODO: Move functions to a Bus.
 			void memWrite(u16 addr, u8 data);
-			[[nodiscard]] u16 memRead(u16 addr) const;
+			[[nodiscard]] u8 memRead(u16 addr) const;
 
 			void memWrite16(u16 addr, u16 data);
 			[[nodiscard]] u16 memRead16(u16 addr) const;
 
-			// NOTE: Maybe this is unnecessary.
-			[[nodiscard]] u8 getStatus() const;
-			[[nodiscard]] u8 getA() const;
-			[[nodiscard]] u8 getX() const;
-			[[nodiscard]] u8 getY() const;
+			void stackPush(u8 data);
+			[[nodiscard]] u8 stackPop();
+			void stackPush16(u16 data);
+			[[nodiscard]] u16 stackPop16();
+
+			// NOTE: Just for convenience.
+			[[nodiscard]] inline u8 getStatus() const { return m_status; }
+
+			[[nodiscard]] inline u8 getA() const { return m_reg_a; }
+
+			[[nodiscard]] inline u8 getX() const { return m_reg_x; }
+
+			[[nodiscard]] inline u8 getY() const { return m_reg_y; }
 
 		private:
 			enum Flags : u8 {
@@ -43,15 +71,97 @@ namespace nes {
 				N = (1 << 7), // Negative
 			};
 
+			struct Opcode {
+				public:
+					std::string name;
+					AddressingMode addressing;
+					void (CPU::*operation)(u16);
+					u8 cycles { 0 };
+					u8 page_cycles { 0 }; // 0 or 1
+			};
+
+			void isPageCrossed(u16 a, u16 b);
+
+			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
+
 			[[nodiscard]] u8 getFlag(Flags flag) const;
 			void setFlag(Flags flag, bool v);
 
+			void ADC(u16 addr);
+			void AND(u16 addr);
+			void ASL(u16 addr);
+			void BCC(u16 addr);
+			void BCS(u16 addr);
+			void BEQ(u16 addr);
+			void BIT(u16 addr);
+			void BMI(u16 addr);
+			void BNE(u16 addr);
+			void BPL(u16 addr);
+			void BRK(u16 addr);
+			void BVC(u16 addr);
+			void BVS(u16 addr);
+			void CLC(u16 addr);
+			void CLD(u16 addr);
+			void CLI(u16 addr);
+			void CLV(u16 addr);
+			void CMP(u16 addr);
+			void CPX(u16 addr);
+			void CPY(u16 addr);
+			void DEC(u16 addr);
+			void DEX(u16 addr);
+			void DEY(u16 addr);
+			void EOR(u16 addr);
+			void INC(u16 addr);
+			void INX(u16 addr);
+			void INY(u16 addr);
+			void JMP(u16 addr);
+			void JSR(u16 addr);
+			void LDA(u16 addr);
+			void LDX(u16 addr);
+			void LDY(u16 addr);
+			void LSR(u16 addr);
+			void NOP(u16 addr);
+			void ORA(u16 addr);
+			void PHA(u16 addr);
+			void PHP(u16 addr);
+			void PLA(u16 addr);
+			void PLP(u16 addr);
+			void ROL(u16 addr);
+			void ROR(u16 addr);
+			void RTI(u16 addr);
+			void RTS(u16 addr);
+			void SBC(u16 addr);
+			void SEC(u16 addr);
+			void SED(u16 addr);
+			void SEI(u16 addr);
+			void STA(u16 addr);
+			void STX(u16 addr);
+			void STY(u16 addr);
+			void TAX(u16 addr);
+			void TAY(u16 addr);
+			void TSX(u16 addr);
+			void TXA(u16 addr);
+			void TXS(u16 addr);
+			void TYA(u16 addr);
+
+			// Registers
 			u16 m_pc { 0x0000 };  // Program Counter
+			u8 m_sp { 0xfd };	  // Stack Pointer
 			u8 m_status { 0x00 }; // Status Register
 			u8 m_reg_a { 0x00 };  // Accumulator Register
 			u8 m_reg_x { 0x00 };  // X Register
 			u8 m_reg_y { 0x00 };  // Y Register
 
+			u8 m_cycles { 8 };
+
+			// NOTE: Convenience variables.
+			bool m_page_crossed { false };
+			u8 m_opcode {};
+
+			// Lookup table with all implemented opcodes.
+			std::unordered_map<u8, Opcode> m_optable;
+
+			// TODO: Move CPU RAM to a Bus.
 			std::array<u8, 0xffff> m_ram {}; // RAM memory array.
 	};
 } // namespace nes
