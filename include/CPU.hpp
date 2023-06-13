@@ -33,9 +33,13 @@ namespace nes {
 			~CPU() = default;
 
 			void load(const std::vector<u8>& program); // TODO: Proper mapper.
+
+			[[nodiscard]] std::string getDebugString() const;
+
 			void clock();
 			void step();
 			void reset();
+
 			void irq();
 			void nmi();
 
@@ -50,14 +54,8 @@ namespace nes {
 			void stackPush16(u16 data);
 			[[nodiscard]] u16 stackPop16();
 
-			// NOTE: Just for convenience.
-			[[nodiscard]] inline u8 getStatus() const { return m_status; }
-
-			[[nodiscard]] inline u8 getA() const { return m_reg_a; }
-
-			[[nodiscard]] inline u8 getX() const { return m_reg_x; }
-
-			[[nodiscard]] inline u8 getY() const { return m_reg_y; }
+			// TODO: Remove later.
+			[[nodiscard]] u8 getStatus() const { return m_status; }
 
 		private:
 			enum Flags : u8 {
@@ -81,7 +79,6 @@ namespace nes {
 			};
 
 			void isPageCrossed(u16 a, u16 b);
-
 			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
 
 			[[nodiscard]] u8 getFlag(Flags flag) const;
@@ -162,7 +159,7 @@ namespace nes {
 			std::unordered_map<u8, Opcode> m_optable;
 
 			// TODO: Move CPU RAM to a Bus.
-			std::array<u8, 0xffff> m_ram {}; // RAM memory array.
+			std::array<u8, 64 * 1024> m_ram {}; // RAM memory array.
 	};
 } // namespace nes
 

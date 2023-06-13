@@ -1,5 +1,6 @@
 #include "CPU.hpp"
 
+#include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
 namespace nes {
@@ -14,7 +15,19 @@ namespace nes {
 			{ 0x61, Opcode { "ADC", AddressingMode::IZX, &CPU::ADC, 6, 0 } },
 			{ 0x71, Opcode { "ADC", AddressingMode::IZY, &CPU::ADC, 5, 1 } },
 
+			{ 0x29, Opcode { "AND", AddressingMode::IMM, &CPU::AND, 2, 0 } },
+			{ 0x25, Opcode { "AND", AddressingMode::ZP0, &CPU::AND, 3, 0 } },
+			{ 0x35, Opcode { "AND", AddressingMode::ZPX, &CPU::AND, 4, 0 } },
+			{ 0x2d, Opcode { "AND", AddressingMode::ABS, &CPU::AND, 4, 0 } },
+			{ 0x3d, Opcode { "AND", AddressingMode::ABX, &CPU::AND, 4, 1 } },
+			{ 0x39, Opcode { "AND", AddressingMode::ABY, &CPU::AND, 4, 1 } },
+			{ 0x21, Opcode { "AND", AddressingMode::IZX, &CPU::AND, 6, 0 } },
+			{ 0x31, Opcode { "AND", AddressingMode::IZY, &CPU::AND, 5, 1 } },
+
 			{ 0x00, Opcode { "BRK", AddressingMode::IMP, &CPU::BRK, 7, 0 } },
+
+			{ 0xe8, Opcode { "INX", AddressingMode::IMP, &CPU::INX, 2, 0 } },
+			{ 0xc8, Opcode { "INY", AddressingMode::IMP, &CPU::INY, 2, 0 } },
 
 			{ 0xa9, Opcode { "LDA", AddressingMode::IMM, &CPU::LDA, 2, 0 } },
 			{ 0xa5, Opcode { "LDA", AddressingMode::ZP0, &CPU::LDA, 3, 0 } },
@@ -37,6 +50,8 @@ namespace nes {
 			{ 0xac, Opcode { "LDY", AddressingMode::ABS, &CPU::LDY, 4, 0 } },
 			{ 0xbc, Opcode { "LDY", AddressingMode::ABX, &CPU::LDY, 4, 1 } },
 
+			{ 0xea, Opcode { "NOP", AddressingMode::IMP, &CPU::NOP, 2, 0 } },
+
 			{ 0x08, Opcode { "PHP", AddressingMode::IMP, &CPU::PHP, 3, 0 } },
 
 			{ 0xaa, Opcode { "TAX", AddressingMode::IMP, &CPU::TAX, 2, 0 } },
@@ -51,6 +66,29 @@ namespace nes {
 	void CPU::load(const std::vector<u8>& program) {
 		std::copy(program.begin(), program.end(), m_ram.begin() + 0x8000);
 		m_pc = 0x8000;
+	}
+
+	std::string CPU::getDebugString() const {
+		// Check if some instruction is running.
+		if (m_cycles != 0) {
+			return "";
+		}
+
+		// Get next Opcode
+		auto next_opcode { memRead(m_pc) };
+		std::string opcode_name {};
+		try {
+			opcode_name = m_optable.at(next_opcode).name;
+		} catch (std::out_of_range& e) {
+			// Just set current opcode to NOP if not doesn't exist.
+			opcode_name = m_optable.at(0xea).name;
+		}
+
+		return fmt::format(
+			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} ST:{6:#010b} "
+			"SP:{7:#04x}",
+			m_pc, next_opcode, opcode_name, m_reg_a, m_reg_x, m_reg_y, m_status, m_sp
+		);
 	}
 
 	void CPU::clock() {
@@ -69,9 +107,9 @@ namespace nes {
 		try {
 			op = m_optable.at(m_opcode);
 		} catch (std::out_of_range& e) {
-			// FIX: Emulation crash if opcode doesn't exist!
-			spdlog::warn("Opcode {0:#0x} is not implemented! {1:}", m_opcode, e.what());
-			throw;
+			spdlog::warn("Opcode {:#04x} is not implemented! {:}", m_opcode, e.what());
+			// Just set current opcode to NOP if not doesn't exist.
+			op = m_optable.at(0xea);
 		}
 
 		u16 addr { getOperandAddress(op.addressing) };
@@ -82,19 +120,12 @@ namespace nes {
 		if (m_page_crossed) {
 			m_cycles += op.page_cycles;
 		}
-
-		// TODO: Debug only, remove later.
-		spdlog::info("Opcode {:#0x}", m_opcode);
-		spdlog::info("Status : {:#0b}", m_status);
-		spdlog::info("Reg | A: {:#0x}", m_reg_a);
-		spdlog::info("Reg | X: {:#0x}", m_reg_x);
-		spdlog::info("Reg | Y: {:#0x}", m_reg_y);
 	}
 
 	void CPU::reset() {
+		m_pc = memRead16(0xfffc);
 		m_status = 0 | U; // NOTE: Unused bit is always 1.
 		m_sp = 0xfd;
-		m_pc = memRead16(0xfffc);
 
 		m_reg_a = 0x00;
 		m_reg_x = 0x00;
@@ -297,7 +328,15 @@ namespace nes {
 		setFlag(N, m_reg_a & 0x80);
 	}
 
-	void CPU::AND(u16 /*unused*/) {}
+	// Instruction: Logical AND on Accumulator
+	// Result     : A = A & M
+	// Flags      : A, Z, N
+	void CPU::AND(u16 addr) {
+		m_reg_a &= memRead(addr);
+
+		setFlag(Z, (m_reg_a & 0xFF) == 0x00);
+		setFlag(N, m_reg_a & 0x80);
+	}
 
 	void CPU::ASL(u16 /*unused*/) {}
 
@@ -354,9 +393,25 @@ namespace nes {
 
 	void CPU::INC(u16 /*unused*/) {}
 
-	void CPU::INX(u16 /*unused*/) {}
+	// Instruction: Increment X register by 1
+	// Result     : X + 1
+	// Flags      : Z, N
+	void CPU::INX(u16 /*unused*/) {
+		m_reg_x += 1;
 
-	void CPU::INY(u16 /*unused*/) {}
+		setFlag(Z, m_reg_x == 0x00);
+		setFlag(N, m_reg_x & 0x80);
+	}
+
+	// Instruction: Increment Y register by 1
+	// Result     : Y + 1
+	// Flags      : Z, N
+	void CPU::INY(u16 /*unused*/) {
+		m_reg_y += 1;
+
+		setFlag(Z, m_reg_y == 0x00);
+		setFlag(N, m_reg_y & 0x80);
+	}
 
 	void CPU::JMP(u16 /*unused*/) {}
 
@@ -391,7 +446,9 @@ namespace nes {
 
 	void CPU::LSR(u16 /*unused*/) {}
 
-	void CPU::NOP(u16 /*unused*/) {}
+	void CPU::NOP(u16 /*unused*/) {
+		// NOTE: DO NOTHING!
+	}
 
 	void CPU::ORA(u16 /*unused*/) {}
 
