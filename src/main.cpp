@@ -7,11 +7,15 @@ int main() {
 	try {
 		auto cpu { nes::CPU() };
 
+		// TODO: Add cartridge loading.
 		cpu.load({
-			0xa9, 0xfe, // LDA $fe
+			0xa9, 0xf0, // LDA #$f0
 			0xaa,		// TAX
 			0xe8,		// INX
 			0xe8,		// INX
+			0x69, 0x11, // ADC #$11
+			0xe9, 0x02, // SBC #$01
+			0x08,		// PHP
 			0x00,		// BRK
 		});
 

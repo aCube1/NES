@@ -10,9 +10,9 @@
 
 namespace nes {
 	enum class AddressingMode {
-		IMM, // Immediate     : #VALUE
 		IMP, // Implied       : No operand
 		ACC, // Accumulator   : No operand
+		IMM, // Immediate     : #VALUE
 		REL, // Relative      : $ADDR8 used with Branch Instructions
 		ZP0, // ZeroPage      : $ADDR8
 		ZPX, // ZeroPage, X   : $ADDR8 + X
@@ -75,7 +75,7 @@ namespace nes {
 					AddressingMode addressing;
 					void (CPU::*operation)(u16);
 					u8 cycles { 0 };
-					u8 page_cycles { 0 }; // 0 or 1
+					u8 page_cycles { 0 }; // Set to 1 if page crossed.
 			};
 
 			void isPageCrossed(u16 a, u16 b);

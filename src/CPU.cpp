@@ -54,6 +54,15 @@ namespace nes {
 
 			{ 0x08, Opcode { "PHP", AddressingMode::IMP, &CPU::PHP, 3, 0 } },
 
+			{ 0xe9, Opcode { "SBC", AddressingMode::IMM, &CPU::SBC, 2, 0 } },
+			{ 0xe5, Opcode { "SBC", AddressingMode::ZP0, &CPU::SBC, 3, 0 } },
+			{ 0xf5, Opcode { "SBC", AddressingMode::ZPX, &CPU::SBC, 4, 0 } },
+			{ 0xed, Opcode { "SBC", AddressingMode::ABS, &CPU::SBC, 4, 0 } },
+			{ 0xfd, Opcode { "SBC", AddressingMode::ABX, &CPU::SBC, 4, 1 } },
+			{ 0xf9, Opcode { "SBC", AddressingMode::ABY, &CPU::SBC, 4, 1 } },
+			{ 0xe1, Opcode { "SBC", AddressingMode::IZX, &CPU::SBC, 6, 0 } },
+			{ 0xf1, Opcode { "SBC", AddressingMode::IZY, &CPU::SBC, 5, 1 } },
+
 			{ 0xaa, Opcode { "TAX", AddressingMode::IMP, &CPU::TAX, 2, 0 } },
 			{ 0xa8, Opcode { "TAY", AddressingMode::IMP, &CPU::TAY, 2, 0 } },
 			{ 0xba, Opcode { "TSX", AddressingMode::IMP, &CPU::TSX, 2, 0 } },
@@ -81,7 +90,7 @@ namespace nes {
 			opcode_name = m_optable.at(next_opcode).name;
 		} catch (std::out_of_range& e) {
 			// Just set current opcode to NOP if not doesn't exist.
-			opcode_name = m_optable.at(0xea).name;
+			opcode_name = "NOP";
 		}
 
 		return fmt::format(
@@ -224,12 +233,17 @@ namespace nes {
 		u16 addr {};
 
 		switch (mode) {
+		case AddressingMode::IMP:
+			[[fallthrough]];
+		case AddressingMode::ACC:
+			break;
 		case AddressingMode::IMM:
 			addr = m_pc;
 			m_pc += 1;
+
 			break;
 		case AddressingMode::REL:
-			addr = static_cast<u16>(memRead(m_pc));
+			addr = memRead(m_pc);
 			m_pc += 1;
 
 			if (addr & 0x80) {
@@ -237,15 +251,15 @@ namespace nes {
 			}
 			break;
 		case AddressingMode::ZP0:
-			addr = static_cast<u16>(memRead(m_pc));
+			addr = memRead(m_pc) & 0x00ff;
 			m_pc += 1;
 			break;
 		case AddressingMode::ZPX:
-			addr = static_cast<u16>(memRead(m_pc) + m_reg_x);
+			addr = (memRead(m_pc) + m_reg_x) & 0x00ff;
 			m_pc += 1;
 			break;
 		case AddressingMode::ZPY:
-			addr = static_cast<u16>(memRead(m_pc) + m_reg_y);
+			addr = (memRead(m_pc) + m_reg_y) & 0x00ff;
 			m_pc += 1;
 			break;
 		case AddressingMode::ABS:
@@ -270,28 +284,17 @@ namespace nes {
 				// HACK: Simulate page boundary hardware bug.
 				addr = (memRead(ptr & 0xff00) << 8) | memRead(ptr);
 			} else {
-				addr = (memRead(ptr + 1) << 8 | memRead(ptr));
+				addr = memRead16(ptr);
 			}
 		} break;
-		case AddressingMode::IZX: {
-			u16 temp { memRead(m_pc) };
+		case AddressingMode::IZX:
+			addr = memRead16(memRead(m_pc) + m_reg_x);
 			m_pc += 1;
-
-			u8 l { memRead((temp + m_reg_x) & 0x00ff) };
-			u8 h { memRead((temp + m_reg_x + 1) & 0x00ff) };
-
-			addr = (h << 8) | l;
-		} break;
+			break;
 		case AddressingMode::IZY: {
-			u16 temp { memRead(m_pc) };
-			m_pc += 1;
-
-			u8 l { memRead(temp & 0x00ff) };
-			u8 h { memRead((temp + 1) & 0x00ff) };
-
-			addr = (h << 8) | l;
-			addr += m_reg_y;
+			addr = memRead16(memRead(m_pc)) + m_reg_y;
 			isPageCrossed(addr - m_reg_y, addr);
+			m_pc += 1;
 		} break;
 		default:
 			break;
@@ -422,6 +425,7 @@ namespace nes {
 	// Flags      : Z, N
 	void CPU::LDA(u16 addr) {
 		m_reg_a = memRead(addr);
+
 		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
@@ -431,6 +435,7 @@ namespace nes {
 	// Flags      : Z, N
 	void CPU::LDX(u16 addr) {
 		m_reg_x = memRead(addr);
+
 		setFlag(Z, m_reg_x == 0x00);
 		setFlag(N, m_reg_x & 0x80);
 	}
@@ -440,6 +445,7 @@ namespace nes {
 	// Flags      : Z, N
 	void CPU::LDY(u16 addr) {
 		m_reg_y = memRead(addr);
+
 		setFlag(Z, m_reg_y == 0x00);
 		setFlag(N, m_reg_y & 0x80);
 	}
@@ -456,7 +462,6 @@ namespace nes {
 
 	// Instruction: Push status register to the stack
 	// Result     : Status -> Stack
-	// Note       : Break flag is set before push.
 	void CPU::PHP(u16 /*unused*/) {
 		stackPush(m_status | B | U); // NOTE: Always set Unused bit to 1.
 		setFlag(B, false);
@@ -479,10 +484,10 @@ namespace nes {
 	// Flags      : C, V, N, Z
 	void CPU::SBC(u16 addr) {
 		auto m { memRead(addr) };
-		auto result { static_cast<u16>(m_reg_a - m - (1 - getFlag(C))) };
+		u16 result { static_cast<u16>(static_cast<u16>(m_reg_a) - m - (1 - getFlag(C))) };
 
 		setFlag(C, result > 0xff);
-		setFlag(V, (m_reg_a ^ result) & (~m ^ result) & 0x80 != 0x00);
+		setFlag(V, ((m_reg_a ^ result) & (~m ^ result) & 0x80) != 0x00);
 
 		m_reg_a = result & 0x00ff;
 
@@ -502,26 +507,28 @@ namespace nes {
 
 	void CPU::STY(u16 /*unused*/) {}
 
-	// Instruction: Copy contents from Accumulator to X register.
+	// Instruction: Copy contents of the Accumulator into the X register.
 	// Result     : X = A
 	// Flags      : Z, N
 	void CPU::TAX(u16 /*unused*/) {
 		m_reg_x = m_reg_a;
+
 		setFlag(Z, (m_reg_x & 0xff) == 0x00);
 		setFlag(N, m_reg_x & 0x80);
 	}
 
-	// Instruction: Copy contents from Accumulator to Y register.
+	// Instruction: Copy contents of the Accumulator into the Y register.
 	// Result     : Y = A
 	// Flags      : Z, N
 	void CPU::TAY(u16 /*unused*/) {
 		m_reg_y = m_reg_a;
+
 		setFlag(Z, (m_reg_y & 0xff) == 0x00);
 		setFlag(N, m_reg_y & 0x80);
 	}
 
-	// Instruction: Transfer Stack Pointer to X register.
-	// Result     : X = StackPointer
+	// Instruction: Copy contents of the Stack Pointer into the X register.
+	// Result     : X = SP
 	// Flags      : Z, N
 	void CPU::TSX(u16 /*unused*/) {
 		m_reg_x = m_sp;
@@ -529,7 +536,7 @@ namespace nes {
 		setFlag(N, m_reg_x & 0x80);
 	}
 
-	// Instruction: Copy contents from X register to Accumulator.
+	// Instruction: Copy contents of the X register into the Accumulator.
 	// Result     : A = X
 	// Flags      : Z, N
 	void CPU::TXA(u16 /*unused*/) {
@@ -538,17 +545,18 @@ namespace nes {
 		setFlag(N, m_reg_a & 0x80);
 	}
 
-	// Instruction: Transfer X register to Stack Pointer.
-	// Result     : StackPointer = X
+	// Instruction: Copy contents of the X register into the Stack Pointer.
+	// Result     : SP = X
 	void CPU::TXS(u16 /*unused*/) {
 		m_sp = m_reg_x;
 	}
 
-	// Instruction: Copy contents from Y register to Accumulator.
+	// Instruction: Copy contents of the Y register into the Accumulator.
 	// Result     : A = Y
 	// Flags      : Z, N
 	void CPU::TYA(u16 /*unused*/) {
 		m_reg_a = m_reg_y;
+
 		setFlag(Z, (m_reg_a & 0xff) == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
