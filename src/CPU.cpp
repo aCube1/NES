@@ -5,6 +5,8 @@
 
 namespace nes {
 	CPU::CPU() {
+		// NOTE: I don't know if I need to change this to a array or continue using a
+		// unordered_map
 		m_optable = {
 			{ 0x69, Opcode { "ADC", AddressingMode::IMM, &CPU::ADC, 2, 0 } },
 			{ 0x65, Opcode { "ADC", AddressingMode::ZP0, &CPU::ADC, 3, 0 } },
@@ -25,6 +27,11 @@ namespace nes {
 			{ 0x31, Opcode { "AND", AddressingMode::IZY, &CPU::AND, 5, 1 } },
 
 			{ 0x00, Opcode { "BRK", AddressingMode::IMP, &CPU::BRK, 7, 0 } },
+
+			{ 0x18, Opcode { "CLC", AddressingMode::IMP, &CPU::CLC, 2, 0 } },
+			{ 0xd8, Opcode { "CLD", AddressingMode::IMP, &CPU::CLD, 2, 0 } },
+			{ 0x58, Opcode { "CLI", AddressingMode::IMP, &CPU::CLI, 2, 0 } },
+			{ 0xb8, Opcode { "CLV", AddressingMode::IMP, &CPU::CLV, 2, 0 } },
 
 			{ 0xe8, Opcode { "INX", AddressingMode::IMP, &CPU::INX, 2, 0 } },
 			{ 0xc8, Opcode { "INY", AddressingMode::IMP, &CPU::INY, 2, 0 } },
@@ -63,6 +70,10 @@ namespace nes {
 			{ 0xe1, Opcode { "SBC", AddressingMode::IZX, &CPU::SBC, 6, 0 } },
 			{ 0xf1, Opcode { "SBC", AddressingMode::IZY, &CPU::SBC, 5, 1 } },
 
+			{ 0x38, Opcode { "SEC", AddressingMode::IMP, &CPU::SEC, 2, 0 } },
+			{ 0xf8, Opcode { "SED", AddressingMode::IMP, &CPU::SED, 2, 0 } },
+			{ 0x78, Opcode { "SEI", AddressingMode::IMP, &CPU::SEI, 2, 0 } },
+
 			{ 0xaa, Opcode { "TAX", AddressingMode::IMP, &CPU::TAX, 2, 0 } },
 			{ 0xa8, Opcode { "TAY", AddressingMode::IMP, &CPU::TAY, 2, 0 } },
 			{ 0xba, Opcode { "TSX", AddressingMode::IMP, &CPU::TSX, 2, 0 } },
@@ -89,8 +100,8 @@ namespace nes {
 		try {
 			opcode_name = m_optable.at(next_opcode).name;
 		} catch (std::out_of_range& e) {
-			// Just set current opcode to NOP if not doesn't exist.
-			opcode_name = "NOP";
+			// Just set current opcode to XXX if not doesn't exist.
+			opcode_name = "XXX";
 		}
 
 		return fmt::format(
@@ -111,6 +122,7 @@ namespace nes {
 	void CPU::step() {
 		m_opcode = memRead(m_pc);
 		m_pc += 1;
+		setFlag(U, true); // Always set Unused bit to 1.
 
 		Opcode op {};
 		try {
@@ -372,13 +384,29 @@ namespace nes {
 
 	void CPU::BVS(u16 /*unused*/) {}
 
-	void CPU::CLC(u16 /*unused*/) {}
+	// Instruction: Clear Carry Flag
+	// Result     : C = 0
+	void CPU::CLC(u16 /*unused*/) {
+		setFlag(C, false);
+	}
 
-	void CPU::CLD(u16 /*unused*/) {}
+	// Instruction: Clear Decimal Flag
+	// Result     : D = 0
+	void CPU::CLD(u16 /*unused*/) {
+		setFlag(C, false);
+	}
 
-	void CPU::CLI(u16 /*unused*/) {}
+	// Instruction: Clear Interrupt Flag
+	// Result     : I = 0
+	void CPU::CLI(u16 /*unused*/) {
+		setFlag(I, false);
+	}
 
-	void CPU::CLV(u16 /*unused*/) {}
+	// Instruction: Clear Overflow Flag
+	// Result     : V = 0
+	void CPU::CLV(u16 /*unused*/) {
+		setFlag(V, false);
+	}
 
 	void CPU::CMP(u16 /*unused*/) {}
 
@@ -452,6 +480,8 @@ namespace nes {
 
 	void CPU::LSR(u16 /*unused*/) {}
 
+	// Instruction: Simply do nothing
+	// Result     : NOTHING!
 	void CPU::NOP(u16 /*unused*/) {
 		// NOTE: DO NOTHING!
 	}
@@ -495,11 +525,23 @@ namespace nes {
 		setFlag(N, m_reg_a & 0x80);
 	}
 
-	void CPU::SEC(u16 /*unused*/) {}
+	// Instruction: Set Carry flag
+	// Result     : C = 1
+	void CPU::SEC(u16 /*unused*/) {
+		setFlag(C, true);
+	}
 
-	void CPU::SED(u16 /*unused*/) {}
+	// Instruction: Set Decimal flag
+	// Result     : D = 1
+	void CPU::SED(u16 /*unused*/) {
+		setFlag(D, true);
+	}
 
-	void CPU::SEI(u16 /*unused*/) {}
+	// Instruction: Set Interrupt flag
+	// Result     : I = 1
+	void CPU::SEI(u16 /*unused*/) {
+		setFlag(I, true);
+	}
 
 	void CPU::STA(u16 /*unused*/) {}
 
