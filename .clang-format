@@ -4,7 +4,7 @@ Standard: c++17
 IndentWidth: 4
 TabWidth: 4
 ColumnLimit: 90
-UseTab: Always
+UseTab: AlignWithSpaces
 UseCRLF: false
 #ContinuationIndentWidth: 4
 

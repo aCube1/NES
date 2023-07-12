@@ -5,7 +5,7 @@ set(LIBS_DIR ${PROJECT_SOURCE_DIR}/libs)
 
 function(link_default_libraries target)
 	find_package(
-		SFML 2.5.1
+		SFML 2.6.0
 		COMPONENTS
 			window graphics audio
 		REQUIRED
