@@ -19,6 +19,7 @@ target_sources(
 	PRIVATE
 		src/main.cpp
 		src/CPU.cpp
+		src/Bus.cpp
 )
 
 target_include_directories(

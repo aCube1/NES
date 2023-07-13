@@ -3,7 +3,6 @@
 
 #include "types.hpp"
 
-#include <array>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -25,39 +24,14 @@ namespace nes {
 		IZY, // (Indirect), Y : ($ADDR16) + Y
 	};
 
+	class Bus;
+
 	class CPU {
 		public:
 			CPU();
 			CPU(const CPU&) = delete;
 			CPU& operator=(const CPU&) = delete;
-			~CPU() = default;
 
-			void load(const std::vector<u8>& program); // TODO: Proper mapper.
-
-			[[nodiscard]] std::string getDebugString() const;
-
-			void clock();
-			void step();
-			void reset();
-
-			void irq();
-			void nmi();
-
-			void memWrite(u16 addr, u8 data);
-			[[nodiscard]] u8 memRead(u16 addr) const;
-
-			void memWrite16(u16 addr, u16 data);
-			[[nodiscard]] u16 memRead16(u16 addr) const;
-
-			void stackPush(u8 data);
-			[[nodiscard]] u8 stackPop();
-			void stackPush16(u16 data);
-			[[nodiscard]] u16 stackPop16();
-
-			// TODO: Remove later.
-			[[nodiscard]] u8 getStatus() const { return m_status; }
-
-		private:
 			enum Flags : u8 {
 				C = (1 << 0), // Carry bit.
 				Z = (1 << 1), // Zero
@@ -69,6 +43,24 @@ namespace nes {
 				N = (1 << 7), // Negative
 			};
 
+			void connectBus(Bus *bus);
+
+			void clock();
+			void step();
+			void reset();
+
+			void irq();
+			void nmi();
+
+			[[nodiscard]] inline u8 getFlag(Flags flag) const;
+			void setFlag(Flags flag, bool v);
+
+			[[nodiscard]] std::string getDebugString() const;
+
+			// TODO: Remove later.
+			[[nodiscard]] inline u8 getStatus() const { return m_status; }
+
+		private:
 			struct Opcode {
 				public:
 					std::string name;
@@ -78,11 +70,18 @@ namespace nes {
 					u8 page_cycles { 0 }; // Set to 1 if page crossed.
 			};
 
-			void isPageCrossed(u16 a, u16 b);
-			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
+			[[nodiscard]] inline u8 memRead(u16 addr, bool ro = false) const;
+			[[nodiscard]] inline u16 memRead16(u16 addr, bool ro = false) const;
+			inline void memWrite(u16 addr, u8 data);
+			inline void memWrite16(u16 addr, u16 data);
 
-			[[nodiscard]] u8 getFlag(Flags flag) const;
-			void setFlag(Flags flag, bool v);
+			void stackPush(u8 data);
+			[[nodiscard]] u8 stackPop();
+			void stackPush16(u16 data);
+			[[nodiscard]] u16 stackPop16();
+
+			inline void isPageCrossed(u16 a, u16 b);
+			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
 
 			void ADC(u16 addr);
 			void AND(u16 addr);
@@ -143,13 +142,15 @@ namespace nes {
 
 			// Registers
 			u16 m_pc { 0x0000 };  // Program Counter
-			u8 m_sp { 0xfd };	  // Stack Pointer
-			u8 m_status { 0x00 }; // Status Register
+			u8 m_sp { 0xfd };     // Stack Pointer
+			u8 m_status { 0x24 }; // Status Register
 			u8 m_reg_a { 0x00 };  // Accumulator Register
 			u8 m_reg_x { 0x00 };  // X Register
 			u8 m_reg_y { 0x00 };  // Y Register
 
 			u8 m_cycles { 8 };
+
+			Bus *m_bus { nullptr };
 
 			// NOTE: Convenience variables.
 			bool m_page_crossed { false };
@@ -157,9 +158,6 @@ namespace nes {
 
 			// Lookup table with all implemented opcodes.
 			std::unordered_map<u8, Opcode> m_optable;
-
-			// TODO: Move CPU RAM to a Bus.
-			std::array<u8, 64 * 1024> m_ram {}; // RAM memory array.
 	};
 } // namespace nes
 

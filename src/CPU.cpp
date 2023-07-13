@@ -1,5 +1,7 @@
 #include "CPU.hpp"
 
+#include "Bus.hpp"
+
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
@@ -74,6 +76,22 @@ namespace nes {
 			{ 0xf8, Opcode { "SED", AddressingMode::IMP, &CPU::SED, 2, 0 } },
 			{ 0x78, Opcode { "SEI", AddressingMode::IMP, &CPU::SEI, 2, 0 } },
 
+			{ 0x85, Opcode { "STA", AddressingMode::ZP0, &CPU::STA, 3, 0 } },
+			{ 0x95, Opcode { "STA", AddressingMode::ZPX, &CPU::STA, 4, 0 } },
+			{ 0x8d, Opcode { "STA", AddressingMode::ABS, &CPU::STA, 4, 0 } },
+			{ 0x9d, Opcode { "STA", AddressingMode::ABX, &CPU::STA, 5, 0 } },
+			{ 0x99, Opcode { "STA", AddressingMode::ABY, &CPU::STA, 5, 0 } },
+			{ 0x81, Opcode { "STA", AddressingMode::IZX, &CPU::STA, 6, 0 } },
+			{ 0x91, Opcode { "STA", AddressingMode::IZY, &CPU::STA, 6, 0 } },
+
+			{ 0x86, Opcode { "STX", AddressingMode::ZP0, &CPU::STX, 3, 0 } },
+			{ 0x96, Opcode { "STX", AddressingMode::ZPY, &CPU::STX, 4, 0 } },
+			{ 0x8e, Opcode { "STX", AddressingMode::ABS, &CPU::STX, 4, 0 } },
+
+			{ 0x84, Opcode { "STY", AddressingMode::ZP0, &CPU::STY, 3, 0 } },
+			{ 0x94, Opcode { "STY", AddressingMode::ZPX, &CPU::STY, 4, 0 } },
+			{ 0x8c, Opcode { "STY", AddressingMode::ABS, &CPU::STY, 4, 0 } },
+
 			{ 0xaa, Opcode { "TAX", AddressingMode::IMP, &CPU::TAX, 2, 0 } },
 			{ 0xa8, Opcode { "TAY", AddressingMode::IMP, &CPU::TAY, 2, 0 } },
 			{ 0xba, Opcode { "TSX", AddressingMode::IMP, &CPU::TSX, 2, 0 } },
@@ -83,32 +101,9 @@ namespace nes {
 		};
 	}
 
-	void CPU::load(const std::vector<u8>& program) {
-		std::copy(program.begin(), program.end(), m_ram.begin() + 0x8000);
-		m_pc = 0x8000;
-	}
-
-	std::string CPU::getDebugString() const {
-		// Check if some instruction is running.
-		if (m_cycles != 0) {
-			return "";
-		}
-
-		// Get next Opcode
-		auto next_opcode { memRead(m_pc) };
-		std::string opcode_name {};
-		try {
-			opcode_name = m_optable.at(next_opcode).name;
-		} catch (std::out_of_range& e) {
-			// Just set current opcode to XXX if not doesn't exist.
-			opcode_name = "XXX";
-		}
-
-		return fmt::format(
-			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} ST:{6:#010b} "
-			"SP:{7:#04x}",
-			m_pc, next_opcode, opcode_name, m_reg_a, m_reg_x, m_reg_y, m_status, m_sp
-		);
+	void CPU::connectBus(Bus *bus) {
+		m_bus = bus;
+		assert(m_bus != nullptr);
 	}
 
 	void CPU::clock() {
@@ -152,12 +147,11 @@ namespace nes {
 		m_reg_x = 0x00;
 		m_reg_y = 0x00;
 
-		// Reset takes time.
-		m_cycles = 8;
+		m_cycles = 8; // Reset takes time.
 	}
 
 	void CPU::irq() {
-		// Is interrupt is allowed
+		// Is interrupt allowed
 		if (getFlag(I) == 1) {
 			return;
 		}
@@ -187,31 +181,43 @@ namespace nes {
 		m_cycles = 8; // NMIs take time.
 	}
 
-	void CPU::memWrite(u16 addr, u8 data) {
-		m_ram.at(addr) = data;
+	std::string CPU::getDebugString() const {
+		// Check if some instruction is running.
+		if (m_cycles != 0) {
+			return "";
+		}
+
+		// Get next Opcode
+		auto next_opcode { memRead(m_pc) };
+		std::string opcode_name {};
+		try {
+			opcode_name = m_optable.at(next_opcode).name;
+		} catch (std::out_of_range& e) {
+			// Just set current opcode to XXX if not doesn't exist.
+			opcode_name = "XXX";
+		}
+
+		return fmt::format(
+			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} ST:{6:#010b} "
+			"SP:{7:#04x}",
+			m_pc, next_opcode, opcode_name, m_reg_a, m_reg_x, m_reg_y, m_status, m_sp
+		);
 	}
 
-	u8 CPU::memRead(u16 addr) const {
-		u8 data {};
+	u8 CPU::memRead(u16 addr, bool ro) const {
+		return m_bus->cpuRead(addr, ro);
+	}
 
-		data = m_ram.at(addr);
+	u16 CPU::memRead16(u16 addr, bool ro) const {
+		return m_bus->cpuRead16(addr, ro);
+	}
 
-		return data;
+	void CPU::memWrite(u16 addr, u8 data) {
+		m_bus->cpuWrite(addr, data);
 	}
 
 	void CPU::memWrite16(u16 addr, u16 data) {
-		auto l { static_cast<u8>(data >> 8) };
-		auto h { static_cast<u8>(data & 0xff) };
-
-		memWrite(addr, l);
-		memWrite(addr + 1, h);
-	}
-
-	u16 CPU::memRead16(u16 addr) const {
-		auto l { memRead(addr) };
-		auto h { memRead(addr + 1) };
-
-		return (h << 8) | l;
+		m_bus->cpuWrite16(addr, data);
 	}
 
 	void CPU::stackPush(u8 data) {
@@ -221,7 +227,7 @@ namespace nes {
 
 	u8 CPU::stackPop() {
 		m_sp += 1;
-		return memRead(0x0100 + m_sp);
+		return memRead(0x0100 + (m_sp - 1));
 	}
 
 	void CPU::stackPush16(u16 data) {
@@ -481,7 +487,7 @@ namespace nes {
 	void CPU::LSR(u16 /*unused*/) {}
 
 	// Instruction: Simply do nothing
-	// Result     : NOTHING!
+	// Result     : Consume cycles
 	void CPU::NOP(u16 /*unused*/) {
 		// NOTE: DO NOTHING!
 	}
@@ -543,11 +549,23 @@ namespace nes {
 		setFlag(I, true);
 	}
 
-	void CPU::STA(u16 /*unused*/) {}
+	// Instruction: Stores the contents of the Accumulator into memory.
+	// Result     : M = A
+	void CPU::STA(u16 addr) {
+		memWrite(addr, m_reg_a);
+	}
 
-	void CPU::STX(u16 /*unused*/) {}
+	// Instruction: Stores the contents of the X register into memory.
+	// Result     : M = X
+	void CPU::STX(u16 addr) {
+		memWrite(addr, m_reg_x);
+	}
 
-	void CPU::STY(u16 /*unused*/) {}
+	// Instruction: Stores the contents of the Y register into memory.
+	// Result     : M = Y
+	void CPU::STY(u16 addr) {
+		memWrite(addr, m_reg_y);
+	}
 
 	// Instruction: Copy contents of the Accumulator into the X register.
 	// Result     : X = A
