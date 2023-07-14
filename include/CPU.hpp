@@ -5,7 +5,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <vector>
 
 namespace nes {
 	enum class AddressingMode {
@@ -52,13 +51,13 @@ namespace nes {
 			void irq();
 			void nmi();
 
-			[[nodiscard]] inline u8 getFlag(Flags flag) const;
-			void setFlag(Flags flag, bool v);
+			[[nodiscard]] u8 getFlag(Flags flag) const;
+			void setFlag(Flags flag, bool active);
 
 			[[nodiscard]] std::string getDebugString() const;
 
 			// TODO: Remove later.
-			[[nodiscard]] inline u8 getStatus() const { return m_status; }
+			[[nodiscard]] u8 getStatus() const { return m_status; }
 
 		private:
 			struct Opcode {
@@ -70,75 +69,37 @@ namespace nes {
 					u8 page_cycles { 0 }; // Set to 1 if page crossed.
 			};
 
-			[[nodiscard]] inline u8 memRead(u16 addr, bool ro = false) const;
-			[[nodiscard]] inline u16 memRead16(u16 addr, bool ro = false) const;
-			inline void memWrite(u16 addr, u8 data);
-			inline void memWrite16(u16 addr, u16 data);
+			inline void isPageCrossed(u16 a, u16 b) {
+				m_page_crossed = (a & 0xff00) != (b & 0xff00);
+			}
+
+			[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
+			[[nodiscard]] u16 memRead16(u16 addr, bool ro = false) const;
+			void memWrite(u16 addr, u8 data);
 
 			void stackPush(u8 data);
 			[[nodiscard]] u8 stackPop();
 			void stackPush16(u16 data);
 			[[nodiscard]] u16 stackPop16();
 
-			inline void isPageCrossed(u16 a, u16 b);
 			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
 
-			void ADC(u16 addr);
-			void AND(u16 addr);
-			void ASL(u16 addr);
-			void BCC(u16 addr);
-			void BCS(u16 addr);
-			void BEQ(u16 addr);
-			void BIT(u16 addr);
-			void BMI(u16 addr);
-			void BNE(u16 addr);
-			void BPL(u16 addr);
-			void BRK(u16 addr);
-			void BVC(u16 addr);
-			void BVS(u16 addr);
-			void CLC(u16 addr);
-			void CLD(u16 addr);
-			void CLI(u16 addr);
-			void CLV(u16 addr);
-			void CMP(u16 addr);
-			void CPX(u16 addr);
-			void CPY(u16 addr);
-			void DEC(u16 addr);
-			void DEX(u16 addr);
-			void DEY(u16 addr);
-			void EOR(u16 addr);
-			void INC(u16 addr);
-			void INX(u16 addr);
-			void INY(u16 addr);
-			void JMP(u16 addr);
-			void JSR(u16 addr);
-			void LDA(u16 addr);
-			void LDX(u16 addr);
-			void LDY(u16 addr);
-			void LSR(u16 addr);
-			void NOP(u16 addr);
-			void ORA(u16 addr);
-			void PHA(u16 addr);
-			void PHP(u16 addr);
-			void PLA(u16 addr);
-			void PLP(u16 addr);
-			void ROL(u16 addr);
-			void ROR(u16 addr);
-			void RTI(u16 addr);
-			void RTS(u16 addr);
-			void SBC(u16 addr);
-			void SEC(u16 addr);
-			void SED(u16 addr);
-			void SEI(u16 addr);
-			void STA(u16 addr);
-			void STX(u16 addr);
-			void STY(u16 addr);
-			void TAX(u16 addr);
-			void TAY(u16 addr);
-			void TSX(u16 addr);
-			void TXA(u16 addr);
-			void TXS(u16 addr);
-			void TYA(u16 addr);
+			// clang-format off
+			void ADC(u16 addr); void AND(u16 addr); void ASL(u16 addr); void BCC(u16 addr);
+			void BCS(u16 addr); void BEQ(u16 addr); void BIT(u16 addr); void BMI(u16 addr);
+			void BNE(u16 addr); void BPL(u16 addr); void BRK(u16 addr); void BVC(u16 addr);
+			void BVS(u16 addr); void CLC(u16 addr); void CLD(u16 addr); void CLI(u16 addr);
+			void CLV(u16 addr); void CMP(u16 addr); void CPX(u16 addr); void CPY(u16 addr);
+			void DEC(u16 addr); void DEX(u16 addr); void DEY(u16 addr); void EOR(u16 addr);
+			void INC(u16 addr); void INX(u16 addr); void INY(u16 addr); void JMP(u16 addr);
+			void JSR(u16 addr); void LDA(u16 addr); void LDX(u16 addr); void LDY(u16 addr);
+			void LSR(u16 addr); void NOP(u16 addr); void ORA(u16 addr); void PHA(u16 addr);
+			void PHP(u16 addr); void PLA(u16 addr); void PLP(u16 addr); void ROL(u16 addr);
+			void ROR(u16 addr); void RTI(u16 addr); void RTS(u16 addr); void SBC(u16 addr);
+			void SEC(u16 addr); void SED(u16 addr); void SEI(u16 addr); void STA(u16 addr);
+			void STX(u16 addr); void STY(u16 addr); void TAX(u16 addr); void TAY(u16 addr);
+			void TSX(u16 addr); void TXA(u16 addr); void TXS(u16 addr); void TYA(u16 addr);
+			// clang-format on
 
 			// Registers
 			u16 m_pc { 0x0000 };  // Program Counter

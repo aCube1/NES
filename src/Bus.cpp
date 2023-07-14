@@ -1,7 +1,7 @@
 #include "Bus.hpp"
 
 namespace nes {
-	void Bus::powerUp() {
+	void Bus::power() {
 		m_cpu.connectBus(this);
 
 		reset();
@@ -24,10 +24,10 @@ namespace nes {
 	u8 Bus::cpuRead(u16 addr, bool /* ro */) const {
 		u8 data { 0x00 };
 
-		if (addr >= 0x0000 && addr <= 0x1fff) {
+		if (addr >= 0x0000 && addr < 0x2000) {
 			// System RAM Address range, mirrorred every 2048
 			data = m_cpu_ram.at(addr & 0x07ff);
-		} else if (addr >= 0x2000 && addr <= 0x3fff) {
+		} else if (addr >= 0x2000 && addr < 0x4000) {
 			// TODO: Implement PPU!
 		}
 
@@ -48,13 +48,5 @@ namespace nes {
 		} else if (addr >= 0x2000 && addr <= 0x3fff) {
 			// TODO: Implement PPU!
 		}
-	}
-
-	void Bus::cpuWrite16(u16 addr, u16 data) {
-		auto l { static_cast<u8>(data >> 8) };
-		auto h { static_cast<u8>(data & 0xff) };
-
-		cpuWrite(addr, l);
-		cpuWrite(addr + 1, h);
 	}
 } // namespace nes

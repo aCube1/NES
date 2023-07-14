@@ -109,6 +109,7 @@ namespace nes {
 	void CPU::clock() {
 		// Verify if there is remaining cycles.
 		if (m_cycles == 0) {
+			setFlag(U, true); // NOTE: Always set Unused bit to 1.
 			step();
 		}
 		m_cycles -= 1;
@@ -117,7 +118,6 @@ namespace nes {
 	void CPU::step() {
 		m_opcode = memRead(m_pc);
 		m_pc += 1;
-		setFlag(U, true); // Always set Unused bit to 1.
 
 		Opcode op {};
 		try {
@@ -140,7 +140,7 @@ namespace nes {
 
 	void CPU::reset() {
 		m_pc = memRead16(0xfffc);
-		m_status = 0 | U; // NOTE: Unused bit is always 1.
+		m_status = 0x00 | U; // NOTE: Unused bit is always 1.
 		m_sp = 0xfd;
 
 		m_reg_a = 0x00;
@@ -181,6 +181,18 @@ namespace nes {
 		m_cycles = 8; // NMIs take time.
 	}
 
+	u8 CPU::getFlag(CPU::Flags flag) const {
+		return (m_status & flag);
+	}
+
+	void CPU::setFlag(CPU::Flags flag, bool active) {
+		if (active) {
+			m_status |= flag;
+		} else {
+			m_status &= (~flag);
+		}
+	}
+
 	std::string CPU::getDebugString() const {
 		// Check if some instruction is running.
 		if (m_cycles != 0) {
@@ -205,19 +217,18 @@ namespace nes {
 	}
 
 	u8 CPU::memRead(u16 addr, bool ro) const {
+		assert(m_bus != nullptr);
 		return m_bus->cpuRead(addr, ro);
 	}
 
 	u16 CPU::memRead16(u16 addr, bool ro) const {
+		assert(m_bus != nullptr);
 		return m_bus->cpuRead16(addr, ro);
 	}
 
 	void CPU::memWrite(u16 addr, u8 data) {
+		assert(m_bus != nullptr);
 		m_bus->cpuWrite(addr, data);
-	}
-
-	void CPU::memWrite16(u16 addr, u16 data) {
-		m_bus->cpuWrite16(addr, data);
 	}
 
 	void CPU::stackPush(u8 data) {
@@ -226,33 +237,25 @@ namespace nes {
 	}
 
 	u8 CPU::stackPop() {
+		auto data { memRead(0x0100 + m_sp) };
 		m_sp += 1;
-		return memRead(0x0100 + (m_sp - 1));
+		return data;
 	}
 
 	void CPU::stackPush16(u16 data) {
-		memWrite16(0x0100 + m_sp, data);
-		m_sp -= 2;
+		stackPush((data >> 8) & 0x00ff);
+		stackPush(data & 0x00ff);
 	}
 
 	u16 CPU::stackPop16() {
-		auto l { stackPop() };
-		auto h { stackPop() };
-
-		return (h << 8) | l;
-	}
-
-	// Check if page crossed.
-	void CPU::isPageCrossed(u16 a, u16 b) {
-		m_page_crossed = (a & 0xff00) != (b & 0xff00);
+		return (stackPop() << 8) | stackPop();
 	}
 
 	u16 CPU::getOperandAddress(AddressingMode mode) {
 		u16 addr {};
 
 		switch (mode) {
-		case AddressingMode::IMP:
-			[[fallthrough]];
+		case AddressingMode::IMP: // FALLTHROUGH
 		case AddressingMode::ACC:
 			break;
 		case AddressingMode::IMM:
@@ -309,28 +312,16 @@ namespace nes {
 			addr = memRead16(memRead(m_pc) + m_reg_x);
 			m_pc += 1;
 			break;
-		case AddressingMode::IZY: {
+		case AddressingMode::IZY:
 			addr = memRead16(memRead(m_pc)) + m_reg_y;
 			isPageCrossed(addr - m_reg_y, addr);
 			m_pc += 1;
-		} break;
+			break;
 		default:
 			break;
 		}
 
 		return addr;
-	}
-
-	u8 CPU::getFlag(CPU::Flags flag) const {
-		return (m_status & flag);
-	}
-
-	void CPU::setFlag(CPU::Flags flag, bool v) {
-		if (v) {
-			m_status |= flag;
-		} else {
-			m_status &= (~flag);
-		}
 	}
 
 	// Instruction: Add with Carry In
