@@ -2,9 +2,11 @@
 #define _NES_BUS_HPP_
 
 #include "CPU.hpp"
+#include "Rom.hpp"
 #include "types.hpp"
 
 #include <array>
+#include <memory>
 #include <vector>
 
 #define NES_RAM_SIZE 2048
@@ -16,13 +18,7 @@ namespace nes {
 			Bus(const Bus&) = delete;
 			Bus& operator=(const Bus&) = delete;
 
-			// TODO: Proper mapper.
-			// Emulate Mapper0 just for testing purposes.
-			inline void load(const std::vector<u8>& program) {
-				std::copy(program.begin(), program.end(), m_cpu_ram.begin() + 0x8000);
-				m_cpu_ram.at(0xfffc) = 0x00;
-				m_cpu_ram.at(0xfffd) = 0x80;
-			}
+			void insert(Rom cartridge);
 
 			void power();
 			void reset();
@@ -32,6 +28,10 @@ namespace nes {
 			[[nodiscard]] u16 cpuRead16(u16 addr, bool ro = false) const;
 			void cpuWrite(u16 addr, u8 data);
 
+			[[nodiscard]] u8 ppuRead(u16 addr) const;
+
+			[[nodiscard]] inline CPU& getCPU() { return m_cpu; }
+
 		private:
 			CPU m_cpu;
 
@@ -40,7 +40,6 @@ namespace nes {
 
 			// Memory
 			std::array<u8, NES_RAM_SIZE> m_cpu_ram {};
-			// std::array<u8, NES_RAM_SIZE> m_ppu_ram {};
 	};
 } // namespace nes
 

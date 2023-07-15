@@ -1,6 +1,12 @@
 #include "Bus.hpp"
 
+#include <cassert>
+
 namespace nes {
+	void Bus::insert(Rom cartridge) {
+		(void)cartridge;
+	}
+
 	void Bus::power() {
 		m_cpu.connectBus(this);
 
@@ -29,6 +35,13 @@ namespace nes {
 			data = m_cpu_ram.at(addr & 0x07ff);
 		} else if (addr >= 0x2000 && addr < 0x4000) {
 			// TODO: Implement PPU!
+		} else if (addr >= 0x4000 && addr < 0x4018) {
+			// TODO: Implement APU and Joysticks!
+		} else if (addr >= 0x4018 && addr < 0x4020) {
+			// APU and I/0 functionality
+			assert(0); // But it's normally disabled
+		} else {
+			// TODO: Implement mappers!
 		}
 
 		return data;
@@ -42,11 +55,18 @@ namespace nes {
 	}
 
 	void Bus::cpuWrite(u16 addr, u8 data) {
-		if (addr >= 0x0000 && addr <= 0x1fff) {
+		if (addr >= 0x0000 && addr < 0x2000) {
 			// PPU Address range, mirrored every 8
 			m_cpu_ram.at(addr & 0x07ff) = data;
-		} else if (addr >= 0x2000 && addr <= 0x3fff) {
+		} else if (addr >= 0x2000 && addr < 0x4000) {
 			// TODO: Implement PPU!
+		} else if (addr >= 0x4000 && addr < 0x4018) {
+			// TODO: Implement APU and Joysticks!
+		} else if (addr >= 0x4018 && addr < 0x4020) {
+			// APU and I/0 functionality
+			assert(0); // But it's normally disabled
+		} else {
+			// TODO: Implement mappers!
 		}
 	}
 } // namespace nes
