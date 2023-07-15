@@ -4,6 +4,7 @@
 #include "types.hpp"
 
 #include <string>
+#include <tuple>
 #include <unordered_map>
 
 namespace nes {
@@ -70,8 +71,8 @@ namespace nes {
 					u8 page_cycles { 0 }; // Set to 1 if page crossed.
 			};
 
-			inline void isPageCrossed(u16 a, u16 b) {
-				m_page_crossed = (a & 0xff00) != (b & 0xff00);
+			[[nodiscard]] inline bool isPageCrossed(u16 a, u16 b) {
+				return (a & 0xff00) != (b & 0xff00);
 			}
 
 			[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
@@ -83,7 +84,7 @@ namespace nes {
 			void stackPush16(u16 data);
 			[[nodiscard]] u16 stackPop16();
 
-			[[nodiscard]] u16 getOperandAddress(AddressingMode mode);
+			[[nodiscard]] std::tuple<u16, bool> getOperandAddress(AddressingMode mode);
 
 			// clang-format off
 			void ADC(u16 addr); void AND(u16 addr); void ASL(u16 addr); void BCC(u16 addr);
@@ -115,8 +116,8 @@ namespace nes {
 			Bus *m_bus { nullptr };
 
 			// NOTE: Convenience variables.
-			bool m_page_crossed { false };
 			u8 m_opcode {};
+			Opcode m_instruction {};
 
 			// Lookup table with all implemented opcodes.
 			std::unordered_map<u8, Opcode> m_optable;

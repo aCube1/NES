@@ -28,6 +28,16 @@ namespace nes {
 			{ 0x21, Opcode { "AND", AddressingMode::IZX, &CPU::AND, 6, 0 } },
 			{ 0x31, Opcode { "AND", AddressingMode::IZY, &CPU::AND, 5, 1 } },
 
+			{ 0x0a, Opcode { "ASL", AddressingMode::ACC, &CPU::ASL, 2, 0 } },
+			{ 0x06, Opcode { "ASL", AddressingMode::ZP0, &CPU::ASL, 5, 0 } },
+			{ 0x16, Opcode { "ASL", AddressingMode::ZPX, &CPU::ASL, 6, 0 } },
+			{ 0x0e, Opcode { "ASL", AddressingMode::ABS, &CPU::ASL, 6, 0 } },
+			{ 0x1e, Opcode { "ASL", AddressingMode::ABX, &CPU::ASL, 7, 0 } },
+
+			{ 0x90, Opcode { "BCC", AddressingMode::REL, &CPU::BCC, 2, 0 } },
+			{ 0xb0, Opcode { "BCS", AddressingMode::REL, &CPU::BCS, 2, 0 } },
+			{ 0xf0, Opcode { "BEQ", AddressingMode::REL, &CPU::BEQ, 2, 0 } },
+
 			{ 0x00, Opcode { "BRK", AddressingMode::IMP, &CPU::BRK, 7, 0 } },
 
 			{ 0x18, Opcode { "CLC", AddressingMode::IMP, &CPU::CLC, 2, 0 } },
@@ -119,22 +129,21 @@ namespace nes {
 		m_opcode = memRead(m_pc);
 		m_pc += 1;
 
-		Opcode op {};
 		try {
-			op = m_optable.at(m_opcode);
+			m_instruction = m_optable.at(m_opcode);
 		} catch (std::out_of_range& e) {
-			spdlog::warn("Opcode {:#04x} is not implemented! {:}", m_opcode, e.what());
+			spdlog::warn("Opcode {:#04x} is not implemented! {}", m_opcode, e.what());
 			// Just set current opcode to NOP if not doesn't exist.
-			op = m_optable.at(0xea);
+			m_instruction = m_optable.at(0xea);
 		}
 
-		u16 addr { getOperandAddress(op.addressing) };
+		auto [addr, page_crossed] { getOperandAddress(m_instruction.addressing) };
 
-		(this->*op.operation)(addr);
-		m_cycles += op.cycles;
+		(this->*m_instruction.operation)(addr);
+		m_cycles += m_instruction.cycles;
 
-		if (m_page_crossed) {
-			m_cycles += op.page_cycles;
+		if (page_crossed) {
+			m_cycles += m_instruction.page_cycles;
 		}
 	}
 
@@ -251,8 +260,9 @@ namespace nes {
 		return (stackPop() << 8) | stackPop();
 	}
 
-	u16 CPU::getOperandAddress(AddressingMode mode) {
+	std::tuple<u16, bool> CPU::getOperandAddress(AddressingMode mode) {
 		u16 addr {};
+		bool page_crossed { false };
 
 		switch (mode) {
 		case AddressingMode::IMP: // FALLTHROUGH
@@ -290,12 +300,12 @@ namespace nes {
 		case AddressingMode::ABX:
 			addr = memRead16(m_pc) + m_reg_x;
 			m_pc += 2;
-			isPageCrossed(addr - m_reg_x, addr);
+			page_crossed = isPageCrossed(addr - m_reg_x, addr);
 			break;
 		case AddressingMode::ABY:
 			addr = memRead16(m_pc) + m_reg_y;
 			m_pc += 2;
-			isPageCrossed(addr - m_reg_y, addr);
+			page_crossed = isPageCrossed(addr - m_reg_y, addr);
 			break;
 		case AddressingMode::IND: {
 			auto ptr { memRead16(m_pc) };
@@ -314,14 +324,14 @@ namespace nes {
 			break;
 		case AddressingMode::IZY:
 			addr = memRead16(memRead(m_pc)) + m_reg_y;
-			isPageCrossed(addr - m_reg_y, addr);
+			page_crossed = isPageCrossed(addr - m_reg_y, addr);
 			m_pc += 1;
 			break;
 		default:
 			break;
 		}
 
-		return addr;
+		return std::make_tuple(addr, page_crossed);
 	}
 
 	// Instruction: Add with Carry In
@@ -346,17 +356,71 @@ namespace nes {
 	void CPU::AND(u16 addr) {
 		m_reg_a &= memRead(addr);
 
-		setFlag(Z, (m_reg_a & 0xFF) == 0x00);
+		setFlag(Z, (m_reg_a & 0xff) == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
-	void CPU::ASL(u16 /*unused*/) {}
+	// Instruction: Arithmetic Shift Left
+	// Result     : A = C <- (A << 1) <- 0
+	// Flags      : N, Z, C
+	void CPU::ASL(u16 addr) {
+		u16 m { m_reg_a };
+		if (m_instruction.addressing == AddressingMode::ACC) {
+			m = memRead(addr);
+		}
 
-	void CPU::BCC(u16 /*unused*/) {}
+		m <<= 0x01;
+		setFlag(C, (m & 0xff00) > 0x00);
+		setFlag(Z, (m & 0x00ff) == 0x00);
+		setFlag(N, m & 0x80);
 
-	void CPU::BCS(u16 /*unused*/) {}
+		if (m_instruction.addressing == AddressingMode::ACC) {
+			memWrite(addr, m);
+		} else {
+			m_reg_a = m;
+		}
+	}
 
-	void CPU::BEQ(u16 /*unused*/) {}
+	// Instruction: Branch if Carry Clear
+	// Result     : if (C == 0) pc = addr
+	void CPU::BCC(u16 addr) {
+		if (getFlag(C) != 0x00) {
+			return;
+		}
+		m_cycles += 1;
+
+		m_pc += addr;
+		if (isPageCrossed(m_pc, m_pc - addr)) {
+			m_cycles += 1;
+		}
+	}
+
+	// Instruction: Branch if Carry Set
+	// Result     : if (C == 1) pc = addr
+	void CPU::BCS(u16 addr) {
+		if (getFlag(C) == 0x00) {
+			return;
+		}
+		m_cycles += 1;
+
+		m_pc += addr;
+		if (isPageCrossed(m_pc, m_pc - addr)) {
+			m_cycles += 1;
+		}
+	}
+
+	// Instruction: Branch if Equal
+	void CPU::BEQ(u16 addr) {
+		if (getFlag(Z) == 0x00) {
+			return;
+		}
+		m_cycles += 1;
+
+		m_pc += addr;
+		if (isPageCrossed(m_pc, m_pc - addr)) {
+			m_cycles += 1;
+		}
+	}
 
 	void CPU::BIT(u16 /*unused*/) {}
 
