@@ -5,6 +5,12 @@
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
 
+namespace {
+	[[nodiscard]] bool isPageCrossed(u16 a, u16 b) {
+		return (a & 0xff00) != (b & 0xff00);
+	}
+} // namespace
+
 namespace nes {
 	CPU::CPU() {
 		// NOTE: I don't know if I need to change this to a array or continue using a
@@ -37,6 +43,13 @@ namespace nes {
 			{ 0x90, Opcode { "BCC", AddressingMode::REL, &CPU::BCC, 2, 0 } },
 			{ 0xb0, Opcode { "BCS", AddressingMode::REL, &CPU::BCS, 2, 0 } },
 			{ 0xf0, Opcode { "BEQ", AddressingMode::REL, &CPU::BEQ, 2, 0 } },
+
+			{ 0x24, Opcode { "BIT", AddressingMode::ZP0, &CPU::BIT, 3, 0 } },
+			{ 0x2c, Opcode { "BIT", AddressingMode::ABS, &CPU::BIT, 4, 0 } },
+
+			{ 0x30, Opcode { "BMI", AddressingMode::REL, &CPU::BMI, 2, 0 } },
+			{ 0xd0, Opcode { "BNE", AddressingMode::REL, &CPU::BNE, 2, 0 } },
+			{ 0x10, Opcode { "BPL", AddressingMode::REL, &CPU::BPL, 2, 0 } },
 
 			{ 0x00, Opcode { "BRK", AddressingMode::IMP, &CPU::BRK, 7, 0 } },
 
@@ -384,51 +397,66 @@ namespace nes {
 	// Instruction: Branch if Carry Clear
 	// Result     : if (C == 0) pc = addr
 	void CPU::BCC(u16 addr) {
-		if (getFlag(C) != 0x00) {
-			return;
-		}
-		m_cycles += 1;
-
-		m_pc += addr;
-		if (isPageCrossed(m_pc, m_pc - addr)) {
-			m_cycles += 1;
+		if (getFlag(C) == 0x00) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Carry Set
 	// Result     : if (C == 1) pc = addr
 	void CPU::BCS(u16 addr) {
-		if (getFlag(C) == 0x00) {
-			return;
-		}
-		m_cycles += 1;
-
-		m_pc += addr;
-		if (isPageCrossed(m_pc, m_pc - addr)) {
-			m_cycles += 1;
+		if (getFlag(C) == 0x01) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Equal
+	// Result     : if (Z == 1) pc = addr
 	void CPU::BEQ(u16 addr) {
-		if (getFlag(Z) == 0x00) {
-			return;
-		}
-		m_cycles += 1;
-
-		m_pc += addr;
-		if (isPageCrossed(m_pc, m_pc - addr)) {
-			m_cycles += 1;
+		if (getFlag(Z) == 0x01) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
 	}
 
-	void CPU::BIT(u16 /*unused*/) {}
+	// Instruction: Use ANDed A and value in Memory to set or clear Zero flag. Bits 7
+	//              and 6 of the value from memory are copied into the N and V flags
+	// Flags      : A&M, N=M7, V=M6
+	void CPU::BIT(u16 addr) {
+		auto m { memRead(addr) };
+		setFlag(Z, (m & m_reg_a) == 0x00);
+		setFlag(V, (m & 0x40) & 0x01);
+		setFlag(N, (m & 0x80) & 0x01);
+	}
 
-	void CPU::BMI(u16 /*unused*/) {}
+	// Instruction: Branch if Negative
+	// Result     : if (N == 1) pc = addr
+	void CPU::BMI(u16 addr) {
+		if (getFlag(N) == 0x01) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		}
+	}
 
-	void CPU::BNE(u16 /*unused*/) {}
+	// Instruction: Branch if Not Equal
+	// Result     : if (Z == 0) pc = addr
+	void CPU::BNE(u16 addr) {
+		if (getFlag(Z) == 0x00) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		}
+	}
 
-	void CPU::BPL(u16 /*unused*/) {}
+	// Instruction: Branch if Positive
+	// Result     : if (N == 0) pc = addr
+	void CPU::BPL(u16 addr) {
+		if (getFlag(N) == 0x00) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		}
+	}
 
 	// Instruction: Break
 	// Result     : Program sourced interrupt

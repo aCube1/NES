@@ -71,10 +71,6 @@ namespace nes {
 					u8 page_cycles { 0 }; // Set to 1 if page crossed.
 			};
 
-			[[nodiscard]] inline bool isPageCrossed(u16 a, u16 b) {
-				return (a & 0xff00) != (b & 0xff00);
-			}
-
 			[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
 			[[nodiscard]] u16 memRead16(u16 addr, bool ro = false) const;
 			void memWrite(u16 addr, u8 data);
