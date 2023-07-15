@@ -1,10 +1,11 @@
 #include "Bus.hpp"
 
 #include <cassert>
+#include <utility>
 
 namespace nes {
-	void Bus::insert(Rom cartridge) {
-		(void)cartridge;
+	void Bus::insert(Cartridge cartridge) {
+		m_cartridge = std::move(cartridge);
 	}
 
 	void Bus::power() {
@@ -42,6 +43,7 @@ namespace nes {
 			assert(0); // But it's normally disabled
 		} else {
 			// TODO: Implement mappers!
+			data = m_cartridge.prg_data.at(addr & 0x3fff);
 		}
 
 		return data;

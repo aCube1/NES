@@ -20,7 +20,7 @@ target_sources(
 		src/main.cpp
 		src/CPU.cpp
 		src/Bus.cpp
-		src/Rom.cpp
+		src/Cartridge.cpp
 )
 
 target_include_directories(

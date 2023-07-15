@@ -2,7 +2,7 @@
 #define _NES_BUS_HPP_
 
 #include "CPU.hpp"
-#include "Rom.hpp"
+#include "Cartridge.hpp"
 #include "types.hpp"
 
 #include <array>
@@ -18,7 +18,7 @@ namespace nes {
 			Bus(const Bus&) = delete;
 			Bus& operator=(const Bus&) = delete;
 
-			void insert(Rom cartridge);
+			void insert(Cartridge cartridge);
 
 			void power();
 			void reset();
@@ -33,6 +33,7 @@ namespace nes {
 			[[nodiscard]] inline CPU& getCPU() { return m_cpu; }
 
 		private:
+			Cartridge m_cartridge; // TODO: Move cartridge to a mapper.
 			CPU m_cpu;
 
 			// Count how many clocks have passed.

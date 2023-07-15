@@ -1,4 +1,4 @@
-#include "Rom.hpp"
+#include "Cartridge.hpp"
 
 #include "spdlog/spdlog.h"
 
@@ -28,14 +28,14 @@ namespace {
 			u8 padding[5];
 	};
 
-	constexpr u32 constant_name { 0x1a54454e };
+	constexpr u32 constant_name { 0x1a53454e };
 } // namespace
 
 // NOTE: I think some machines will be unable to run cartridges, but...
 static_assert(sizeof(INESHeader) == 16, "The Header is not 16 bytes!");
 
 namespace nes {
-	std::optional<Rom> Rom::loadFile(std::string_view path) {
+	std::optional<Cartridge> Cartridge::loadFile(std::string_view path) {
 		std::ifstream file(path.data(), std::ifstream::in | std::ifstream::binary);
 		if (!file) {
 			spdlog::error("Cannot open the nes file from {}", path);
@@ -53,8 +53,8 @@ namespace nes {
 
 		if (header.name != constant_name) {
 			spdlog::error(
-				"Not a valid .nes file: the constant is {}, expect {}", header.name,
-				constant_name
+				"Not a valid .nes file: the constant is {:#08x}, expect {:#08x}",
+				header.name, constant_name
 			);
 			return {};
 		}
@@ -105,7 +105,7 @@ namespace nes {
 		spdlog::info("Cartridge CHR ROM size is {} KB.", chr_data.size() / 1024);
 
 		file.close();
-		return Rom {
+		return Cartridge {
 			header.prg_banks, header.chr_banks,    mapper_id,
 			mirroring_type,   std::move(prg_data), std::move(chr_data),
 		};

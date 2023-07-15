@@ -1,5 +1,5 @@
-#ifndef _NES_ROM_HPP_
-#define _NES_ROM_HPP_
+#ifndef _NES_CARTRIDGE_HPP_
+#define _NES_CARTRIDGE_HPP_
 
 #include "types.hpp"
 
@@ -8,11 +8,11 @@
 #include <vector>
 
 namespace nes {
-	// Rom represents a NES cartridge.
+	// Cartridge represents a NES cartridge.
 	// It carried banks of ROM memory: PRG ROM for code and CHR ROM for visual graphics.
-	struct Rom {
+	struct Cartridge {
 		public:
-			static std::optional<Rom> loadFile(std::string_view path);
+			static std::optional<Cartridge> loadFile(std::string_view path);
 
 			enum Mirroring {
 				HORIZONTAL,
@@ -33,4 +33,4 @@ namespace nes {
 
 } // namespace nes
 
-#endif // _NES_ROM_HPP_
+#endif // _NES_CARTRIDGE_HPP_

@@ -56,8 +56,9 @@ namespace nes {
 
 			[[nodiscard]] std::string getDebugString() const;
 
-			// TODO: Remove later.
-			[[nodiscard]] u8 getStatus() const { return m_status; }
+			inline void setPC(u16 pc) { m_pc = pc; }
+
+			inline u8 getCycles() const { return m_cycles; }
 
 		private:
 			struct Opcode {
