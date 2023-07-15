@@ -53,6 +53,9 @@ namespace nes {
 
 			{ 0x00, Opcode { "BRK", AddressingMode::IMP, &CPU::BRK, 7, 0 } },
 
+			{ 0x50, Opcode { "BVC", AddressingMode::REL, &CPU::BVC, 2, 0 } },
+			{ 0x70, Opcode { "BVS", AddressingMode::REL, &CPU::BVS, 2, 0 } },
+
 			{ 0x18, Opcode { "CLC", AddressingMode::IMP, &CPU::CLC, 2, 0 } },
 			{ 0xd8, Opcode { "CLD", AddressingMode::IMP, &CPU::CLD, 2, 0 } },
 			{ 0x58, Opcode { "CLI", AddressingMode::IMP, &CPU::CLI, 2, 0 } },
@@ -469,9 +472,23 @@ namespace nes {
 		m_pc = memRead16(0xfffe);
 	}
 
-	void CPU::BVC(u16 /*unused*/) {}
+	// Instruction: Branch if Overflow Clear
+	// Result     : if (V == 0) pc = addr
+	void CPU::BVC(u16 addr) {
+		if (getFlag(V) == 0x00) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		}
+	}
 
-	void CPU::BVS(u16 /*unused*/) {}
+	// Instruction: Branch if Overflow Set
+	// Result     : if (V == 1) pc = addr
+	void CPU::BVS(u16 addr) {
+		if (getFlag(V) == 0x01) {
+			m_pc += addr;
+			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		}
+	}
 
 	// Instruction: Clear Carry Flag
 	// Result     : C = 0
