@@ -61,6 +61,23 @@ namespace nes {
 			{ 0x58, Opcode { "CLI", AddressingMode::IMP, &CPU::CLI, 2, 0 } },
 			{ 0xb8, Opcode { "CLV", AddressingMode::IMP, &CPU::CLV, 2, 0 } },
 
+			{ 0xc9, Opcode { "CMP", AddressingMode::IMM, &CPU::CMP, 2, 0 } },
+			{ 0xc5, Opcode { "CMP", AddressingMode::ZP0, &CPU::CMP, 3, 0 } },
+			{ 0xd5, Opcode { "CMP", AddressingMode::ZPX, &CPU::CMP, 4, 0 } },
+			{ 0xcd, Opcode { "CMP", AddressingMode::ABS, &CPU::CMP, 4, 0 } },
+			{ 0xdd, Opcode { "CMP", AddressingMode::ABX, &CPU::CMP, 4, 1 } },
+			{ 0xd9, Opcode { "CMP", AddressingMode::ABY, &CPU::CMP, 4, 1 } },
+			{ 0xc1, Opcode { "CMP", AddressingMode::IZX, &CPU::CMP, 6, 0 } },
+			{ 0xd1, Opcode { "CMP", AddressingMode::IZY, &CPU::CMP, 5, 1 } },
+
+			{ 0xe0, Opcode { "CPX", AddressingMode::IMM, &CPU::CPX, 2, 0 } },
+			{ 0xe4, Opcode { "CPX", AddressingMode::ZP0, &CPU::CPX, 3, 0 } },
+			{ 0xec, Opcode { "CPX", AddressingMode::ABS, &CPU::CPX, 4, 0 } },
+
+			{ 0xc0, Opcode { "CPY", AddressingMode::IMM, &CPU::CPY, 2, 0 } },
+			{ 0xc4, Opcode { "CPY", AddressingMode::ZP0, &CPU::CPY, 3, 0 } },
+			{ 0xcc, Opcode { "CPY", AddressingMode::ABS, &CPU::CPY, 4, 0 } },
+
 			{ 0xe8, Opcode { "INX", AddressingMode::IMP, &CPU::INX, 2, 0 } },
 			{ 0xc8, Opcode { "INY", AddressingMode::IMP, &CPU::INY, 2, 0 } },
 
@@ -362,7 +379,7 @@ namespace nes {
 
 		m_reg_a = result & 0x00ff;
 
-		setFlag(Z, (m_reg_a & 0xFF) == 0x00);
+		setFlag(Z, (m_reg_a & 0xff) == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
@@ -514,11 +531,38 @@ namespace nes {
 		setFlag(V, false);
 	}
 
-	void CPU::CMP(u16 /*unused*/) {}
+	// Instruction: Compare accumulator
+	// Result     : C <- A >= M    Z <- A == M
+	// Flags      : C, Z, N
+	void CPU::CMP(u16 addr) {
+		auto m { memRead(addr) };
 
-	void CPU::CPX(u16 /*unused*/) {}
+		setFlag(C, m_reg_a >= m);
+		setFlag(Z, m_reg_a == m);
+		setFlag(N, (m_reg_a - m) & 0x80);
+	}
 
-	void CPU::CPY(u16 /*unused*/) {}
+	// Instruction: Compare X register
+	// Result     : C <- X >= M    Z <- X == M
+	// Flags      : C, Z, N
+	void CPU::CPX(u16 addr) {
+		auto m { memRead(addr) };
+
+		setFlag(C, m_reg_x >= m);
+		setFlag(Z, m_reg_x == m);
+		setFlag(N, (m_reg_x - m) & 0x80);
+	}
+
+	// Instruction: Compare Y register
+	// Result     : C <- Y >= M    Z <- Y == M
+	// Flags      : C, Z, N
+	void CPU::CPY(u16 addr) {
+		auto m { memRead(addr) };
+
+		setFlag(C, m_reg_y >= m);
+		setFlag(Z, m_reg_y == m);
+		setFlag(N, (m_reg_y - m) & 0x80);
+	}
 
 	void CPU::DEC(u16 /*unused*/) {}
 
