@@ -103,6 +103,11 @@ namespace nes {
 			{ 0xe8, Opcode { "INX", AddressingMode::IMP, &CPU::INX, 2, 0 } },
 			{ 0xc8, Opcode { "INY", AddressingMode::IMP, &CPU::INY, 2, 0 } },
 
+			{ 0x4c, Opcode { "JMP", AddressingMode::ABS, &CPU::JMP, 3, 0 } },
+			{ 0x6c, Opcode { "JMP", AddressingMode::IND, &CPU::JMP, 5, 0 } },
+
+			{ 0x20, Opcode { "JSR", AddressingMode::ABS, &CPU::JSR, 6, 0 } },
+
 			{ 0xa9, Opcode { "LDA", AddressingMode::IMM, &CPU::LDA, 2, 0 } },
 			{ 0xa5, Opcode { "LDA", AddressingMode::ZP0, &CPU::LDA, 3, 0 } },
 			{ 0xb5, Opcode { "LDA", AddressingMode::ZPX, &CPU::LDA, 4, 0 } },
@@ -657,9 +662,18 @@ namespace nes {
 		setFlag(N, m_reg_y & 0x80);
 	}
 
-	void CPU::JMP(u16 /*unused*/) {}
+	// Instruction: Jump to location
+	// Result     : PC = addr
+	void CPU::JMP(u16 addr) {
+		m_pc = addr;
+	}
 
-	void CPU::JSR(u16 /*unused*/) {}
+	// Instruction: Jump to sub-routine
+	// Result     : Push PC - 1; PC = addr
+	void CPU::JSR(u16 addr) {
+		stackPush16(m_pc - 1);
+		m_pc = addr;
+	}
 
 	// Instruction: Load the accumulator
 	// Result     : A = M
