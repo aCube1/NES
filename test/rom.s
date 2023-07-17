@@ -1,14 +1,17 @@
 .include "ines_header.i"
 
 .CODE
+LDA #$0a ; Loop limit
 LDX #$00 ; Loop counter
-CPX #$00 ; is X == 00
-BEQ loop
+STX $00ff ; Store counter
+
+CMP $00ff ; Compare memory location
+BEQ loop ; Is memory location equals 0x00?
 
 loop:
-	INX ; Increment counter
+	INC $00ff ; Increment counter
 
-	CPX #$0a ; is X == 0a
-	BNE loop
+	CMP $00ff ; Compare memory location with X
+	BNE loop ; Return to loop if not equals
 
 BRK

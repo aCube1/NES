@@ -78,6 +78,28 @@ namespace nes {
 			{ 0xc4, Opcode { "CPY", AddressingMode::ZP0, &CPU::CPY, 3, 0 } },
 			{ 0xcc, Opcode { "CPY", AddressingMode::ABS, &CPU::CPY, 4, 0 } },
 
+			{ 0xc6, Opcode { "DEC", AddressingMode::ZP0, &CPU::DEC, 5, 0 } },
+			{ 0xd6, Opcode { "DEC", AddressingMode::ZPX, &CPU::DEC, 6, 0 } },
+			{ 0xce, Opcode { "DEC", AddressingMode::ABS, &CPU::DEC, 6, 0 } },
+			{ 0xde, Opcode { "DEC", AddressingMode::ABX, &CPU::DEC, 7, 0 } },
+
+			{ 0xca, Opcode { "DEX", AddressingMode::IMP, &CPU::DEX, 2, 0 } },
+			{ 0x88, Opcode { "DEY", AddressingMode::IMP, &CPU::DEY, 2, 0 } },
+
+			{ 0x49, Opcode { "EOR", AddressingMode::IMM, &CPU::EOR, 2, 0 } },
+			{ 0x45, Opcode { "EOR", AddressingMode::ZP0, &CPU::EOR, 3, 0 } },
+			{ 0x55, Opcode { "EOR", AddressingMode::ZPX, &CPU::EOR, 4, 0 } },
+			{ 0x4d, Opcode { "EOR", AddressingMode::ABS, &CPU::EOR, 4, 0 } },
+			{ 0x5d, Opcode { "EOR", AddressingMode::ABX, &CPU::EOR, 4, 1 } },
+			{ 0x59, Opcode { "EOR", AddressingMode::ABY, &CPU::EOR, 4, 1 } },
+			{ 0x41, Opcode { "EOR", AddressingMode::IZX, &CPU::EOR, 6, 0 } },
+			{ 0x51, Opcode { "EOR", AddressingMode::IZY, &CPU::EOR, 5, 1 } },
+
+			{ 0xe6, Opcode { "INC", AddressingMode::ZP0, &CPU::INC, 5, 0 } },
+			{ 0xf6, Opcode { "INC", AddressingMode::ZPX, &CPU::INC, 6, 0 } },
+			{ 0xee, Opcode { "INC", AddressingMode::ABS, &CPU::INC, 6, 0 } },
+			{ 0xfe, Opcode { "INC", AddressingMode::ABX, &CPU::INC, 7, 0 } },
+
 			{ 0xe8, Opcode { "INX", AddressingMode::IMP, &CPU::INX, 2, 0 } },
 			{ 0xc8, Opcode { "INY", AddressingMode::IMP, &CPU::INY, 2, 0 } },
 
@@ -379,7 +401,7 @@ namespace nes {
 
 		m_reg_a = result & 0x00ff;
 
-		setFlag(Z, (m_reg_a & 0xff) == 0x00);
+		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
@@ -389,7 +411,7 @@ namespace nes {
 	void CPU::AND(u16 addr) {
 		m_reg_a &= memRead(addr);
 
-		setFlag(Z, (m_reg_a & 0xff) == 0x00);
+		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
@@ -564,15 +586,56 @@ namespace nes {
 		setFlag(N, (m_reg_y - m) & 0x80);
 	}
 
-	void CPU::DEC(u16 /*unused*/) {}
+	// Instruction: Decrement value at memory location
+	// Result     : M = M - 1
+	// Flags      : Z, N
+	void CPU::DEC(u16 addr) {
+		auto m { memRead(addr) };
+		m -= 1;
+		memWrite(addr, m);
 
-	void CPU::DEX(u16 /*unused*/) {}
+		setFlag(Z, m == 0x00);
+		setFlag(N, m & 0x80);
+	}
 
-	void CPU::DEY(u16 /*unused*/) {}
+	// Instruction: Decrement X register
+	// Result     : X = X - 1
+	// Flags      : Z, N
+	void CPU::DEX(u16 /*unused*/) {
+		m_reg_x -= 1;
+		setFlag(Z, m_reg_x == 0x00);
+		setFlag(N, m_reg_x & 0x80);
+	}
 
-	void CPU::EOR(u16 /*unused*/) {}
+	// Instruction: Decrement Y register
+	// Result     : Y = Y - 1
+	// Flags      : Z, N
+	void CPU::DEY(u16 /*unused*/) {
+		m_reg_y -= 1;
+		setFlag(Z, m_reg_y == 0x00);
+		setFlag(N, m_reg_y & 0x80);
+	}
 
-	void CPU::INC(u16 /*unused*/) {}
+	// Instruction: Bitwise logic XOR
+	// Result     : A = A xor M
+	// Flags      : Z, N
+	void CPU::EOR(u16 addr) {
+		m_reg_a ^= memRead(addr);
+		setFlag(Z, m_reg_a == 0x00);
+		setFlag(N, m_reg_a & 0x80);
+	}
+
+	// Instruction: Increment value at memory location
+	// Result     : M = M + 1
+	// Flags      : Z, N
+	void CPU::INC(u16 addr) {
+		auto m { memRead(addr) };
+		m += 1;
+		memWrite(addr, m);
+
+		setFlag(Z, m == 0x00);
+		setFlag(N, m & 0x80);
+	}
 
 	// Instruction: Increment X register by 1
 	// Result     : X + 1
@@ -671,7 +734,7 @@ namespace nes {
 
 		m_reg_a = result & 0x00ff;
 
-		setFlag(Z, (m_reg_a & 0xff) == 0x00);
+		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
@@ -717,7 +780,7 @@ namespace nes {
 	void CPU::TAX(u16 /*unused*/) {
 		m_reg_x = m_reg_a;
 
-		setFlag(Z, (m_reg_x & 0xff) == 0x00);
+		setFlag(Z, m_reg_x == 0x00);
 		setFlag(N, m_reg_x & 0x80);
 	}
 
@@ -727,7 +790,7 @@ namespace nes {
 	void CPU::TAY(u16 /*unused*/) {
 		m_reg_y = m_reg_a;
 
-		setFlag(Z, (m_reg_y & 0xff) == 0x00);
+		setFlag(Z, m_reg_y == 0x00);
 		setFlag(N, m_reg_y & 0x80);
 	}
 
@@ -736,7 +799,7 @@ namespace nes {
 	// Flags      : Z, N
 	void CPU::TSX(u16 /*unused*/) {
 		m_reg_x = m_sp;
-		setFlag(Z, (m_reg_x & 0xff) == 0x00);
+		setFlag(Z, m_reg_x == 0x00);
 		setFlag(N, m_reg_x & 0x80);
 	}
 
@@ -745,7 +808,7 @@ namespace nes {
 	// Flags      : Z, N
 	void CPU::TXA(u16 /*unused*/) {
 		m_reg_a = m_reg_x;
-		setFlag(Z, (m_reg_a & 0xff) == 0x00);
+		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 
@@ -761,7 +824,7 @@ namespace nes {
 	void CPU::TYA(u16 /*unused*/) {
 		m_reg_a = m_reg_y;
 
-		setFlag(Z, (m_reg_a & 0xff) == 0x00);
+		setFlag(Z, m_reg_a == 0x00);
 		setFlag(N, m_reg_a & 0x80);
 	}
 } // namespace nes
