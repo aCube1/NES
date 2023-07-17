@@ -20,12 +20,13 @@ namespace nes {
 		m_clock = 0;
 	}
 
-	void Bus::clock() {
+	u32 Bus::clock() {
 		if (m_clock % 3 == 0) {
 			m_cpu.clock();
 		}
 
 		m_clock += 1;
+		return m_clock;
 	}
 
 	u8 Bus::cpuRead(u16 addr, bool /* ro */) const {

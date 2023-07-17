@@ -9,11 +9,15 @@ namespace nes {
 		auto& cpu { bus.getCPU() };
 		cpu.setPC(0xc000);
 
-		while (std::cin.get() != 'x') {
+		u32 current_clock {};
+		while (current_clock % 3 != 0 || std::cin.get() != 'x') {
 			do {
-				bus.clock();
+				current_clock = bus.clock();
 			} while (cpu.getCycles() != 0);
-			spdlog::info("{}", cpu.getDebugString());
+
+			if (current_clock % 3 == 0) {
+				spdlog::info("{}", cpu.getDebugString());
+			}
 		}
 	}
 } // namespace nes

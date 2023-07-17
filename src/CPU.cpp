@@ -237,7 +237,7 @@ namespace nes {
 
 	std::string CPU::getDebugString() const {
 		// Check if some instruction is running.
-		if (m_cycles != 0) {
+		if (m_cycles > 0) {
 			return "";
 		}
 

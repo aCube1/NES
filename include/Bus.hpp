@@ -22,7 +22,7 @@ namespace nes {
 
 			void power();
 			void reset();
-			void clock();
+			[[maybe_unused]] u32 clock();
 
 			[[nodiscard]] u8 cpuRead(u16 addr, bool ro = false) const;
 			[[nodiscard]] u16 cpuRead16(u16 addr, bool ro = false) const;
