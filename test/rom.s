@@ -1,10 +1,14 @@
-.SEGMENT "HEADER"
-.BYTE "NES", $1a
-.BYTE   $01       ; 1x 16KB ROM (PRG)
-.BYTE   $01       ; 1x 8KB VROM (CHR)
-.BYTE   %00000001 ; Mapper nibble 0000 == No Mapper
-                  ; Mirroring nibble 0001 == Vertical Mirroring
+.include "ines_header.i"
 
-.SEGMENT "CODE"
-LDA #$0a
+.CODE
+LDX #$00 ; Loop counter
+CPX #$00 ; is X == 00
+BEQ loop
+
+loop:
+	INX ; Increment counter
+
+	CPX #$0a ; is X == 0a
+	BNE loop
+
 BRK

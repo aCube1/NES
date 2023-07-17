@@ -4,18 +4,23 @@ BUILD_DIR := build
 SRCS := rom.s
 OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
 
-ASMFLAGS := --cpu 6502
+ASMFLAGS := -t nes
 LINKFLAGS := --config ines.cfg
+
+.PHONY: default clean
+.DELETE_ON_ERROR: clean
+
+default: all
+all: $(ROM)
+
+$(BUILD_DIR):
+	-mkdir $(BUILD_DIR)
+
+$(OBJS): $(SRCS) $(BUILD_DIR)
+	ca65 $(ASMFLAGS) $< -o $@
 
 $(ROM): $(OBJS)
 	ld65 $^ -o $@ $(LINKFLAGS)
-	cat bin/hdr.bin bin/prg.bin bin/chr.bin > $@
 
-$(OBJS): $(SRCS)
-	ca65 $(ASMFLAGS) $^ -o $@
-
-.PHONY: clean
-.DELETE_ON_ERROR: clean
 clean:
-	rm *.o
-	rm bin/*.bin
+	rm -r $(OBJS)
