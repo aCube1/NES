@@ -129,6 +129,12 @@ namespace nes {
 			{ 0xac, Opcode { "LDY", AddressingMode::ABS, &CPU::LDY, 4, 0 } },
 			{ 0xbc, Opcode { "LDY", AddressingMode::ABX, &CPU::LDY, 4, 1 } },
 
+			{ 0x4a, Opcode { "LSR", AddressingMode::ACC, &CPU::LSR, 2, 0 } },
+			{ 0x46, Opcode { "LSR", AddressingMode::ZP0, &CPU::LSR, 5, 0 } },
+			{ 0x56, Opcode { "LSR", AddressingMode::ZPX, &CPU::LSR, 6, 0 } },
+			{ 0x4e, Opcode { "LSR", AddressingMode::ABS, &CPU::LSR, 6, 0 } },
+			{ 0x5e, Opcode { "LSR", AddressingMode::ABX, &CPU::LSR, 7, 0 } },
+
 			{ 0xea, Opcode { "NOP", AddressingMode::IMP, &CPU::NOP, 2, 0 } },
 
 			{ 0x08, Opcode { "PHP", AddressingMode::IMP, &CPU::PHP, 3, 0 } },
@@ -421,23 +427,23 @@ namespace nes {
 	}
 
 	// Instruction: Arithmetic Shift Left
-	// Result     : A = C <- (A << 1) <- 0
+	// Result     : A = A << 1 or M = M << 1
 	// Flags      : N, Z, C
 	void CPU::ASL(u16 addr) {
-		u16 m { m_reg_a };
 		if (m_instruction.addressing == AddressingMode::ACC) {
-			m = memRead(addr);
-		}
+			setFlag(C, m_reg_a & 0x80);
+			m_reg_a <<= 1;
 
-		m <<= 0x01;
-		setFlag(C, (m & 0xff00) > 0x00);
-		setFlag(Z, (m & 0x00ff) == 0x00);
-		setFlag(N, m & 0x80);
-
-		if (m_instruction.addressing == AddressingMode::ACC) {
-			memWrite(addr, m);
+			setFlag(Z, m_reg_a == 0x00);
+			setFlag(N, m_reg_a & 0x80);
 		} else {
-			m_reg_a = m;
+			auto m { memRead(addr) };
+			setFlag(C, m & 0x80);
+			m <<= 1;
+			memWrite(addr, m);
+
+			setFlag(Z, m == 0x00);
+			setFlag(N, m & 0x80);
 		}
 	}
 
@@ -705,7 +711,26 @@ namespace nes {
 		setFlag(N, m_reg_y & 0x80);
 	}
 
-	void CPU::LSR(u16 /*unused*/) {}
+	// Instruction: Arithmetic Shift Right
+	// Result     : A = A >> 1 or M = M >> 1
+	// Flags      : N, Z, C
+	void CPU::LSR(u16 addr) {
+		if (m_instruction.addressing == AddressingMode::ACC) {
+			setFlag(C, m_reg_a & 0x01);
+			m_reg_a >>= 1;
+
+			setFlag(Z, m_reg_a == 0x00);
+			setFlag(N, m_reg_a & 0x80);
+		} else {
+			auto m { memRead(addr) };
+			setFlag(C, m & 0x01);
+			m >>= 1;
+			memWrite(addr, m);
+
+			setFlag(Z, m == 0x00);
+			setFlag(N, m & 0x80);
+		}
+	}
 
 	// Instruction: Simply do nothing
 	// Result     : Consume cycles
