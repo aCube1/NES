@@ -9,14 +9,12 @@ namespace nes {
 		auto& cpu { bus.getCPU() };
 		cpu.setPC(0xc000);
 
-		do {
-			bus.clock();
-
-			if (cpu.getCycles() == 0) {
-				spdlog::info("{}", cpu.getDebugString());
-				std::cin.get();
-			}
-		} while (true);
+		while (std::cin.get() != 'x') {
+			do {
+				bus.clock();
+			} while (cpu.getCycles() != 0);
+			spdlog::info("{}", cpu.getDebugString());
+		}
 	}
 } // namespace nes
 

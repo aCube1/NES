@@ -4,6 +4,5 @@ build/
 
 # Files
 .clangd
-
-# MacOS Cache
-.DS_Store/
+*.nes
+*.bin
