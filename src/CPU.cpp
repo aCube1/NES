@@ -190,6 +190,9 @@ namespace nes {
 			{ 0x6e, Opcode { "ROR", AddressingMode::ABS, &CPU::ROR, 6, 0 } },
 			{ 0x7e, Opcode { "ROR", AddressingMode::ABX, &CPU::ROR, 7, 0 } },
 
+			{ 0x40, Opcode { "RTI", AddressingMode::IMP, &CPU::RTI, 6, 0 } },
+			{ 0x60, Opcode { "RTS", AddressingMode::IMP, &CPU::RTS, 6, 0 } },
+
 			{ 0xe9, Opcode { "SBC", AddressingMode::IMM, &CPU::SBC, 2, 0 } },
 			{ 0xe5, Opcode { "SBC", AddressingMode::ZP0, &CPU::SBC, 3, 0 } },
 			{ 0xf5, Opcode { "SBC", AddressingMode::ZPX, &CPU::SBC, 4, 0 } },
@@ -873,9 +876,18 @@ namespace nes {
 		}
 	}
 
-	void CPU::RTI(u16 /*unused*/) {}
+	// Instruction: Return from interrupt.
+	// Result     : Status <- Stack and PC <- Stack
+	void CPU::RTI(u16 /*unused*/) {
+		m_status = stackPop() | B | U;
+		m_pc = stackPop16();
+	}
 
-	void CPU::RTS(u16 /*unused*/) {}
+	// Instruction: Return from sub-routine
+	// Result     : PC <- Stack
+	void CPU::RTS(u16 /*unused*/) {
+		m_pc = stackPop16() + 1;
+	}
 
 	// Instruction: Subtract with Borrow In
 	// Result     : A = A - M - (1 - C)
