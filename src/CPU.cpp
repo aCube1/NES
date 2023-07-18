@@ -164,7 +164,31 @@ namespace nes {
 			{ 0xdc, Opcode { "NOP", AddressingMode::ABX, &CPU::NOP, 4, 1 } },
 			{ 0xfc, Opcode { "NOP", AddressingMode::ABX, &CPU::NOP, 4, 1 } },
 
+			{ 0x09, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 2, 0 } },
+			{ 0x05, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 3, 0 } },
+			{ 0x15, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 4, 0 } },
+			{ 0x0d, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 4, 0 } },
+			{ 0x1d, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 4, 1 } },
+			{ 0x19, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 4, 1 } },
+			{ 0x01, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 6, 0 } },
+			{ 0x11, Opcode { "ORA", AddressingMode::IMM, &CPU::ORA, 5, 0 } },
+
+			{ 0x48, Opcode { "PHA", AddressingMode::IMP, &CPU::PHA, 3, 0 } },
 			{ 0x08, Opcode { "PHP", AddressingMode::IMP, &CPU::PHP, 3, 0 } },
+			{ 0x68, Opcode { "PLA", AddressingMode::IMP, &CPU::PLA, 4, 0 } },
+			{ 0x28, Opcode { "PLP", AddressingMode::IMP, &CPU::PLP, 4, 0 } },
+
+			{ 0x2a, Opcode { "ROL", AddressingMode::ACC, &CPU::ROL, 2, 0 } },
+			{ 0x26, Opcode { "ROL", AddressingMode::ZP0, &CPU::ROL, 5, 0 } },
+			{ 0x36, Opcode { "ROL", AddressingMode::ZPX, &CPU::ROL, 6, 0 } },
+			{ 0x2e, Opcode { "ROL", AddressingMode::ABS, &CPU::ROL, 6, 0 } },
+			{ 0x3e, Opcode { "ROL", AddressingMode::ABX, &CPU::ROL, 7, 0 } },
+
+			{ 0x6a, Opcode { "ROR", AddressingMode::ACC, &CPU::ROR, 2, 0 } },
+			{ 0x66, Opcode { "ROR", AddressingMode::ZP0, &CPU::ROR, 5, 0 } },
+			{ 0x76, Opcode { "ROR", AddressingMode::ZPX, &CPU::ROR, 6, 0 } },
+			{ 0x6e, Opcode { "ROR", AddressingMode::ABS, &CPU::ROR, 6, 0 } },
+			{ 0x7e, Opcode { "ROR", AddressingMode::ABX, &CPU::ROR, 7, 0 } },
 
 			{ 0xe9, Opcode { "SBC", AddressingMode::IMM, &CPU::SBC, 2, 0 } },
 			{ 0xe5, Opcode { "SBC", AddressingMode::ZP0, &CPU::SBC, 3, 0 } },
@@ -443,7 +467,7 @@ namespace nes {
 		setFlag(N, m_reg_a & 0x80);
 	}
 
-	// Instruction: Logical AND on Accumulator
+	// Instruction: Bitwise logical AND
 	// Result     : A = A & M
 	// Flags      : A, Z, N
 	void CPU::AND(u16 addr) {
@@ -765,24 +789,89 @@ namespace nes {
 		// NOTE: DO NOTHING!
 	}
 
-	void CPU::ORA(u16 /*unused*/) {}
+	// Instruction: Bitwise logic OR
+	// Result     : A = A | M
+	// Flags      : N, Z
+	void CPU::ORA(u16 addr) {
+		m_reg_a |= memRead(addr);
 
-	void CPU::PHA(u16 /*unused*/) {}
+		setFlag(Z, m_reg_a == 0x00);
+		setFlag(N, m_reg_a & 0x80);
+	}
 
-	// Instruction: Push status register to the stack
+	// Instruction: Push accumulator to stack
+	// Result     : A -> Stack
+	void CPU::PHA(u16 /*unused*/) {
+		stackPush(m_reg_a);
+	}
+
+	// Instruction: Push status register to stack
 	// Result     : Status -> Stack
 	void CPU::PHP(u16 /*unused*/) {
 		stackPush(m_status | B | U); // NOTE: Always set Unused bit to 1.
 		setFlag(B, false);
 	}
 
-	void CPU::PLA(u16 /*unused*/) {}
+	// Instruction: Pull accumulator off stack
+	// Result     : A <- Stack
+	void CPU::PLA(u16 /*unused*/) {
+		m_reg_a = stackPop();
 
-	void CPU::PLP(u16 /*unused*/) {}
+		setFlag(Z, m_reg_a == 0x00);
+		setFlag(N, m_reg_a & 0x80);
+	}
 
-	void CPU::ROL(u16 /*unused*/) {}
+	// Instruction: Pull status register off stack
+	// Result     : Status <- Stack
+	void CPU::PLP(u16 /*unused*/) {
+		m_status = stackPop() | U;
+	}
 
-	void CPU::ROR(u16 /*unused*/) {}
+	// Instruction: Move bits left and fill 7th bit with old carry value
+	// Result     : A = (A << 1) | OLD_C or M = (M << 1) | OLD_C
+	// Flags      : N, Z, C
+	void CPU::ROL(u16 addr) {
+		auto old_carry { getFlag(C) };
+
+		if (m_instruction.addressing == AddressingMode::ACC) {
+			setFlag(C, m_reg_a & 0x80);
+			m_reg_a = (m_reg_a << 1) | old_carry;
+
+			setFlag(Z, m_reg_a == 0x00);
+			setFlag(N, m_reg_a & 0x80);
+		} else {
+			auto m { memRead(addr) };
+			setFlag(C, m & 0x80);
+			m = (m << 1) | old_carry;
+			memWrite(addr, m);
+
+			setFlag(Z, m == 0x00);
+			setFlag(N, m & 0x80);
+		}
+	}
+
+	// Instruction: Move bits right and fill bit 0 with old carry value
+	// Result     : A = (A >> 1) | (OLD_C >> 7) or M = (M >> 1) | (OLD_C >> 7)
+	// Flags      : N, Z, C
+	void CPU::ROR(u16 addr) {
+		auto old_carry { getFlag(C) << 7 };
+
+		if (m_instruction.addressing == AddressingMode::ACC) {
+			setFlag(C, m_reg_a & 0x01);
+			m_reg_a = (m_reg_a >> 1) | old_carry;
+
+			setFlag(Z, m_reg_a == 0x00);
+			setFlag(N, m_reg_a & 0x80);
+		} else {
+			auto m { memRead(addr) };
+			setFlag(C, m & 0x01);
+			m = (m >> 1) | old_carry;
+			memWrite(addr, m);
+
+			setFlag(Z, m == 0x00);
+			setFlag(N, m & 0x80);
+		}
+	}
 
 	void CPU::RTI(u16 /*unused*/) {}
 
