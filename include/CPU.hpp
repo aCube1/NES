@@ -76,8 +76,8 @@ namespace nes {
 			void memWrite(u16 addr, u8 data);
 
 			void stackPush(u8 data);
-			[[nodiscard]] u8 stackPop();
 			void stackPush16(u16 data);
+			[[nodiscard]] u8 stackPop();
 			[[nodiscard]] u16 stackPop16();
 
 			[[nodiscard]] std::tuple<u16, bool> getOperandAddress(AddressingMode mode);

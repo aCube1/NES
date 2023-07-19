@@ -269,7 +269,7 @@ namespace nes {
 
 	void CPU::reset() {
 		m_pc = memRead16(0xfffc);
-		m_status = 0x00 | U; // NOTE: Unused bit is always 1.
+		m_status = 0x24;
 		m_sp = 0xfd;
 
 		m_reg_a = 0x00;
@@ -281,7 +281,7 @@ namespace nes {
 
 	void CPU::irq() {
 		// Is interrupt allowed
-		if (getFlag(I) == 1) {
+		if (getFlag(I)) {
 			return;
 		}
 
@@ -339,7 +339,7 @@ namespace nes {
 		}
 
 		return fmt::format(
-			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} ST:{6:#010b} "
+			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} P:{6:#04x} "
 			"SP:{7:#04x}",
 			m_pc, next_opcode, opcode_name, m_reg_a, m_reg_x, m_reg_y, m_status, m_sp
 		);
@@ -365,19 +365,20 @@ namespace nes {
 		m_sp -= 1;
 	}
 
-	u8 CPU::stackPop() {
-		auto data { memRead(0x0100 + m_sp) };
-		m_sp += 1;
-		return data;
-	}
-
 	void CPU::stackPush16(u16 data) {
 		stackPush((data >> 8) & 0x00ff);
 		stackPush(data & 0x00ff);
 	}
 
+	u8 CPU::stackPop() {
+		m_sp += 1;
+		return memRead(0x0100 + m_sp);
+	}
+
 	u16 CPU::stackPop16() {
-		return (stackPop() << 8) | stackPop();
+		auto l { stackPop() };
+		auto h { stackPop() };
+		return (h << 8) | l;
 	}
 
 	std::tuple<u16, bool> CPU::getOperandAddress(AddressingMode mode) {
@@ -504,7 +505,7 @@ namespace nes {
 	// Instruction: Branch if Carry Clear
 	// Result     : if (C == 0) pc = addr
 	void CPU::BCC(u16 addr) {
-		if (getFlag(C) == 0x00) {
+		if (!getFlag(C)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -513,7 +514,7 @@ namespace nes {
 	// Instruction: Branch if Carry Set
 	// Result     : if (C == 1) pc = addr
 	void CPU::BCS(u16 addr) {
-		if (getFlag(C) == 0x01) {
+		if (getFlag(C)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -522,7 +523,7 @@ namespace nes {
 	// Instruction: Branch if Equal
 	// Result     : if (Z == 1) pc = addr
 	void CPU::BEQ(u16 addr) {
-		if (getFlag(Z) == 0x01) {
+		if (getFlag(Z)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -534,14 +535,14 @@ namespace nes {
 	void CPU::BIT(u16 addr) {
 		auto m { memRead(addr) };
 		setFlag(Z, (m & m_reg_a) == 0x00);
-		setFlag(V, (m & 0x40) & 0x01);
-		setFlag(N, (m & 0x80) & 0x01);
+		setFlag(V, m & 0x40);
+		setFlag(N, m & 0x80);
 	}
 
 	// Instruction: Branch if Negative
 	// Result     : if (N == 1) pc = addr
 	void CPU::BMI(u16 addr) {
-		if (getFlag(N) == 0x01) {
+		if (getFlag(N)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -550,7 +551,7 @@ namespace nes {
 	// Instruction: Branch if Not Equal
 	// Result     : if (Z == 0) pc = addr
 	void CPU::BNE(u16 addr) {
-		if (getFlag(Z) == 0x00) {
+		if (!getFlag(Z)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -559,7 +560,7 @@ namespace nes {
 	// Instruction: Branch if Positive
 	// Result     : if (N == 0) pc = addr
 	void CPU::BPL(u16 addr) {
-		if (getFlag(N) == 0x00) {
+		if (!getFlag(N)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -579,7 +580,7 @@ namespace nes {
 	// Instruction: Branch if Overflow Clear
 	// Result     : if (V == 0) pc = addr
 	void CPU::BVC(u16 addr) {
-		if (getFlag(V) == 0x00) {
+		if (!getFlag(V)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -588,7 +589,7 @@ namespace nes {
 	// Instruction: Branch if Overflow Set
 	// Result     : if (V == 1) pc = addr
 	void CPU::BVS(u16 addr) {
-		if (getFlag(V) == 0x01) {
+		if (getFlag(V)) {
 			m_pc += addr;
 			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
 		}
@@ -603,7 +604,7 @@ namespace nes {
 	// Instruction: Clear Decimal Flag
 	// Result     : D = 0
 	void CPU::CLD(u16 /*unused*/) {
-		setFlag(C, false);
+		setFlag(D, false);
 	}
 
 	// Instruction: Clear Interrupt Flag
@@ -827,7 +828,7 @@ namespace nes {
 	// Instruction: Pull status register off stack
 	// Result     : Status <- Stack
 	void CPU::PLP(u16 /*unused*/) {
-		m_status = stackPop() | U;
+		m_status = (stackPop() & 0xef) | 0x20;
 	}
 
 	// Instruction: Move bits left and fill 7th bit with old carry value
