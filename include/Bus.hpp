@@ -2,7 +2,7 @@
 #define _NES_BUS_HPP_
 
 #include "CPU.hpp"
-#include "Cartridge.hpp"
+#include "Mapper.hpp"
 #include "types.hpp"
 
 #include <array>
@@ -33,7 +33,7 @@ namespace nes {
 			[[nodiscard]] inline CPU& getCPU() { return m_cpu; }
 
 		private:
-			Cartridge m_cartridge; // TODO: Move cartridge to a mapper.
+			std::unique_ptr<Mapper> m_mapper;
 			CPU m_cpu;
 
 			// Count how many clocks have passed.

@@ -18,9 +18,12 @@ target_sources(
 	${PROJECT_NAME}
 	PRIVATE
 		src/main.cpp
-		src/CPU.cpp
 		src/Bus.cpp
+		src/CPU.cpp
 		src/Cartridge.cpp
+
+		src/Mapper.cpp
+		src/mapper/MapperNROM.cpp
 )
 
 target_include_directories(

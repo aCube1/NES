@@ -1,11 +1,15 @@
 #include "Bus.hpp"
 
 #include <cassert>
+#include <stdexcept>
 #include <utility>
 
 namespace nes {
 	void Bus::insert(Cartridge cartridge) {
-		m_cartridge = std::move(cartridge);
+		m_mapper = Mapper::create(std::move(cartridge));
+		if (m_mapper == nullptr) {
+			throw std::runtime_error("No supported cartridge!");
+		}
 	}
 
 	void Bus::power() {
@@ -41,10 +45,10 @@ namespace nes {
 			// TODO: Implement APU and Joysticks!
 		} else if (addr >= 0x4018 && addr < 0x4020) {
 			// APU and I/0 functionality
-			assert(0); // But it's normally disabled
+			// But it's normally disabled
 		} else {
-			// TODO: Implement mappers!
-			data = m_cartridge.prg_data.at(addr & 0x3fff);
+			// Cartridge space: PRG ROM, PRG RAM, and mapper registers
+			data = m_mapper->cpuRead(addr);
 		}
 
 		return data;
@@ -67,9 +71,10 @@ namespace nes {
 			// TODO: Implement APU and Joysticks!
 		} else if (addr >= 0x4018 && addr < 0x4020) {
 			// APU and I/0 functionality
-			assert(0); // But it's normally disabled
+			// But it's normally disabled
 		} else {
-			// TODO: Implement mappers!
+			// Save RAM and PRG ROM that stored in cartridge
+			m_mapper->cpuWrite(addr, data);
 		}
 	}
 } // namespace nes
