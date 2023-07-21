@@ -1,4 +1,4 @@
-#include "Cartridge.hpp"
+#include "nes/Cartridge.hpp"
 
 #include "spdlog/spdlog.h"
 

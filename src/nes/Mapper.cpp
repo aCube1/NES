@@ -1,6 +1,6 @@
-#include "Mapper.hpp"
+#include "nes/Mapper.hpp"
 
-#include "mapper/MapperNROM.hpp"
+#include "nes/mapper/MapperNROM.hpp"
 #include "spdlog/spdlog.h"
 
 namespace nes {

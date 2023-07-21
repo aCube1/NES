@@ -1,7 +1,7 @@
 #ifndef _NES_MAPPER_HPP_
 #define _NES_MAPPER_HPP_
 
-#include "Cartridge.hpp"
+#include "nes/Cartridge.hpp"
 
 #include <memory>
 

@@ -1,8 +1,8 @@
 #ifndef _NES_BUS_HPP_
 #define _NES_BUS_HPP_
 
-#include "CPU.hpp"
-#include "Mapper.hpp"
+#include "nes/CPU.hpp"
+#include "nes/Mapper.hpp"
 #include "types.hpp"
 
 #include <array>

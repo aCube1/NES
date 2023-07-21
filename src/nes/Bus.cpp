@@ -1,4 +1,4 @@
-#include "Bus.hpp"
+#include "nes/Bus.hpp"
 
 #include <cassert>
 #include <stdexcept>

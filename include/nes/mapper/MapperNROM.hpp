@@ -1,7 +1,7 @@
 #ifndef _NES_MAPPER_MAPPER_NROM_HPP_
 #define _NES_MAPPER_MAPPER_NROM_HPP_
 
-#include "Mapper.hpp"
+#include "nes/Mapper.hpp"
 
 namespace nes {
 	class MapperNROM : public Mapper {

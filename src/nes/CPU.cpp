@@ -1,6 +1,6 @@
-#include "CPU.hpp"
+#include "nes/CPU.hpp"
 
-#include "Bus.hpp"
+#include "nes/Bus.hpp"
 
 #include <spdlog/fmt/fmt.h>
 #include <spdlog/spdlog.h>
