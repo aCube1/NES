@@ -10,7 +10,7 @@ namespace nes {
 		cpu.setPC(0xc000);
 
 		u32 current_clock {};
-		while (current_clock % 3 != 0 || std::cin.get() != 'x') {
+		while (cpu.getPC() != 0x4c4c) {
 			do {
 				current_clock = bus.clock();
 			} while (cpu.getCycles() != 0);
@@ -23,7 +23,7 @@ namespace nes {
 } // namespace nes
 
 int main(int argc, char *argv[]) {
-	spdlog::set_pattern("%X %^[%L]%$ %v");
+	spdlog::set_pattern("%X %^[%L]%$ | %v");
 
 	if (argc != 2) {
 		spdlog::error("Usage: {} <rom>", argv[0]);

@@ -1,5 +1,5 @@
-#ifndef _NES_TYPES_HPP_
-#define _NES_TYPES_HPP_
+#ifndef _TYPES_HPP_
+#define _TYPES_HPP_
 
 #include <cstdint>
 
@@ -11,4 +11,4 @@ using s8 = int8_t;
 using s16 = int16_t;
 using s32 = int32_t;
 
-#endif // _NES_TYPES_HPP_
+#endif // _TYPES_HPP_

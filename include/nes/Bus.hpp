@@ -24,8 +24,8 @@ namespace nes {
 			void reset();
 			[[maybe_unused]] u32 clock();
 
-			[[nodiscard]] u8 cpuRead(u16 addr, bool ro = false) const;
-			[[nodiscard]] u16 cpuRead16(u16 addr, bool ro = false) const;
+			[[nodiscard]] u8 cpuRead(u16 addr, bool ro) const;
+			[[nodiscard]] u16 cpuRead16(u16 addr, bool ro) const;
 			void cpuWrite(u16 addr, u8 data);
 
 			[[nodiscard]] u8 ppuRead(u16 addr) const;

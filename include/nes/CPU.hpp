@@ -3,27 +3,11 @@
 
 #include "types.hpp"
 
+#include <array>
 #include <string>
 #include <tuple>
-#include <unordered_map>
 
 namespace nes {
-	enum class AddressingMode {
-		IMP, // Implied       : No operand
-		ACC, // Accumulator   : No operand
-		IMM, // Immediate     : #VALUE
-		REL, // Relative      : $ADDR8 used with Branch Instructions
-		ZP0, // ZeroPage      : $ADDR8
-		ZPX, // ZeroPage, X   : $ADDR8 + X
-		ZPY, // ZeroPage, Y   : $ADDR8 + Y
-		ABS, // Absolute      : $ADDR16
-		ABX, // Absolute, X   : $ADDR16 + X
-		ABY, // Absolute, Y   : $ADDR16 + Y
-		IND, // Indirect      : ($ADDR16) used only with JMP
-		IZX, // (Indirect, X) : ($ADDR16 + X)
-		IZY, // (Indirect), Y : ($ADDR16) + Y
-	};
-
 	class Bus;
 
 	class CPU {
@@ -52,23 +36,48 @@ namespace nes {
 			void irq();
 			void nmi();
 
-			[[nodiscard]] u8 getFlag(Flags flag) const;
-			void setFlag(Flags flag, bool active);
+			inline void setPC(u16 pc) { m_pc = pc; }
+
+			[[nodiscard]] inline u16 getPC() const { return m_pc; }
+
+			inline void setFlag(Flags flag, bool active) {
+				if (active) {
+					m_status |= flag;
+				} else {
+					m_status &= (~flag);
+				}
+			}
+
+			[[nodiscard]] inline u8 getFlag(Flags flag) const { return m_status & flag; }
+
+			[[nodiscard]] inline u8 getCycles() const { return m_cycles; }
 
 			[[nodiscard]] std::string getDebugString() const;
 
-			inline void setPC(u16 pc) { m_pc = pc; }
-
-			inline u8 getCycles() const { return m_cycles; }
-
 		private:
+			enum AddressingMode {
+				IMP, // Implied       : No operand
+				ACC, // Accumulator   : No operand
+				IMM, // Immediate     : #VALUE
+				REL, // Relative      : $ADDR8 used with Branch Instructions
+				ZP0, // ZeroPage      : $ADDR8
+				ZPX, // ZeroPage, X   : $ADDR8 + X
+				ZPY, // ZeroPage, Y   : $ADDR8 + Y
+				ABS, // Absolute      : $ADDR16
+				ABX, // Absolute, X   : $ADDR16 + X
+				ABY, // Absolute, Y   : $ADDR16 + Y
+				IND, // Indirect      : ($ADDR16) used only with JMP
+				IZX, // (Indirect, X) : ($ADDR16 + X)
+				IZY, // (Indirect), Y : ($ADDR16) + Y
+			};
+
 			struct Opcode {
 				public:
 					std::string name;
 					AddressingMode addressing;
-					void (CPU::*operation)(u16);
+					void (CPU::*operation)(u16) = nullptr;
 					u8 cycles { 0 };
-					u8 page_cycles { 0 }; // Set to 1 if page crossed.
+					u8 page_cycles { 0 };
 			};
 
 			[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
@@ -97,6 +106,8 @@ namespace nes {
 			void SEC(u16 addr); void SED(u16 addr); void SEI(u16 addr); void STA(u16 addr);
 			void STX(u16 addr); void STY(u16 addr); void TAX(u16 addr); void TAY(u16 addr);
 			void TSX(u16 addr); void TXA(u16 addr); void TXS(u16 addr); void TYA(u16 addr);
+
+			void NIL(u16 addr); // Catch all "illegal" opcodes
 			// clang-format on
 
 			// Registers
@@ -115,8 +126,8 @@ namespace nes {
 			u8 m_opcode {};
 			Opcode m_instruction {};
 
-			// Lookup table with all implemented opcodes.
-			std::unordered_map<u8, Opcode> m_optable;
+			// Lookup table with all opcodes.
+			std::array<Opcode, 256> m_optable;
 	};
 } // namespace nes
 
