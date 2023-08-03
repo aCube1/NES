@@ -3,7 +3,6 @@
 #include "spdlog/spdlog.h"
 
 namespace nes {
-
 	u8 MapperNROM::cpuRead(u16 addr) {
 		u32 mapped_addr {};
 

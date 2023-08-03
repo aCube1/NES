@@ -10,7 +10,7 @@ namespace nes {
 		cpu.setPC(0xc000);
 
 		u32 current_clock {};
-		while (cpu.getPC() != 0x4c4c) {
+		while (cpu.getFlag(nes::CPU::B)) {
 			do {
 				current_clock = bus.clock();
 			} while (cpu.getCycles() != 0);

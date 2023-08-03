@@ -26,6 +26,15 @@ target_sources(
 		src/nes/mapper/MapperNROM.cpp
 )
 
+target_precompile_headers(
+	${PROJECT_NAME}
+	PRIVATE
+		include/types.hpp
+		include/nes/Mapper.hpp
+		include/nes/Cartridge.hpp
+		include/nes/mapper/MapperNROM.hpp
+)
+
 target_include_directories(
 	${PROJECT_NAME}
 	PRIVATE

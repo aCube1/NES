@@ -10,6 +10,7 @@ function(link_default_libraries target)
 		REQUIRED
 	)
 
+	set(SPDLOG_ENABLE_PCH ON)
 	add_subdirectory(${LIBS_DIR}/spdlog)
 
 	target_link_libraries(
