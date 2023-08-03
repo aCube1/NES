@@ -1,13 +1,13 @@
 #include "nes/Mapper.hpp"
 
-#include "nes/mapper/MapperNROM.hpp"
+#include "nes/mapper/NROM.hpp"
 #include "spdlog/spdlog.h"
 
 namespace nes {
 	std::unique_ptr<Mapper> Mapper::create(Cartridge cartridge) {
 		switch (cartridge.mapper_id) {
 		case 0:
-			return std::make_unique<MapperNROM>(std::move(cartridge));
+			return std::make_unique<mapper::NROM>(std::move(cartridge));
 		default:
 			spdlog::error("No mapper available!");
 			return {};

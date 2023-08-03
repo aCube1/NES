@@ -23,7 +23,7 @@ target_sources(
 		src/nes/CPU.cpp
 		src/nes/Cartridge.cpp
 		src/nes/Mapper.cpp
-		src/nes/mapper/MapperNROM.cpp
+		src/nes/mapper/NROM.cpp
 )
 
 target_precompile_headers(
@@ -32,7 +32,7 @@ target_precompile_headers(
 		include/types.hpp
 		include/nes/Mapper.hpp
 		include/nes/Cartridge.hpp
-		include/nes/mapper/MapperNROM.hpp
+		include/nes/mapper/NROM.hpp
 )
 
 target_include_directories(

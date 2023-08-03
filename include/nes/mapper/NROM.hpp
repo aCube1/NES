@@ -1,10 +1,10 @@
-#ifndef _NES_MAPPER_MAPPER_NROM_HPP_
-#define _NES_MAPPER_MAPPER_NROM_HPP_
+#ifndef _NES_MAPPER_NROM_HPP_
+#define _NES_MAPPER_NROM_HPP_
 
 #include "nes/Mapper.hpp"
 
-namespace nes {
-	class MapperNROM : public Mapper {
+namespace nes::mapper {
+	class NROM : public Mapper {
 		public:
 			using Mapper::Mapper;
 
@@ -14,6 +14,6 @@ namespace nes {
 			u8 ppuRead(u16 addr) override;
 			void ppuWrite(u16 addr, u8 data) override;
 	};
-} // namespace nes
+} // namespace nes::mapper
 
-#endif // _NES_MAPPER_MAPPER_NROM_HPP_
+#endif // _NES_MAPPER_NROM_HPP_
