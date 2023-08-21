@@ -17,19 +17,22 @@ target_compile_features(
 target_sources(
 	${PROJECT_NAME}
 	PRIVATE
-		src/main.cpp
-
 		src/nes/Bus.cpp
 		src/nes/CPU.cpp
 		src/nes/Cartridge.cpp
 		src/nes/Mapper.cpp
 		src/nes/mapper/NROM.cpp
+
+		src/main.cpp
+
 )
 
 target_precompile_headers(
 	${PROJECT_NAME}
 	PRIVATE
-		include/types.hpp
+		include/common/types.hpp
+		include/common/BitField.hpp
+
 		include/nes/Mapper.hpp
 		include/nes/Cartridge.hpp
 		include/nes/mapper/NROM.hpp
