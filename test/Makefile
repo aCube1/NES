@@ -2,7 +2,7 @@ ROM := rom.nes
 
 BUILD_DIR := build
 SRCS := rom.s
-OBJS := $(SRCS:%=$(BUILD_DIR)/%.o)
+OBJS := $(SRCS:%.s=$(BUILD_DIR)/%.o)
 
 ASMFLAGS := -t nes
 LINKFLAGS := --config ines.cfg
