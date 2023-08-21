@@ -3,6 +3,7 @@ Language: Cpp
 Standard: c++17
 IndentWidth: 4
 TabWidth: 4
+AccessModifierOffset: -4
 ColumnLimit: 90
 UseTab: AlignWithSpaces
 UseCRLF: false
@@ -30,9 +31,8 @@ BreakConstructorInitializers: BeforeComma
 
 EmptyLineBeforeAccessModifier: LogicalBlock
 FixNamespaceComments: true
-AccessModifierOffset: 1
 
-IndentAccessModifiers: true
+IndentAccessModifiers: false
 IndentPPDirectives: AfterHash
 IndentWrappedFunctionNames: true
 NamespaceIndentation: All
