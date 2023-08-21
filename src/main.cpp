@@ -7,10 +7,10 @@
 namespace nes {
 	void runDebug(Bus& bus) {
 		auto& cpu { bus.getCPU() };
-		cpu.setPC(0xc000);
+		cpu.setPC(0x8000);
 
 		u32 current_clock {};
-		while (cpu.getFlag(nes::CPU::B)) {
+		while (current_clock % 3 != 0 || std::cin.get() != 'x') {
 			do {
 				current_clock = bus.clock();
 			} while (cpu.getCycles() != 0);
