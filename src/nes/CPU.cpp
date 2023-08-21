@@ -91,15 +91,15 @@ namespace nes {
 	void CPU::clock() {
 		// Verify if there is remaining cycles.
 		if (m_cycles == 0) {
-			setFlag(U, true); // NOTE: Always set Unused bit to 1.
+			m_reg.p.u = true; // NOTE: Always set Unused bit to 1.
 			step();
 		}
 		m_cycles -= 1;
 	}
 
 	void CPU::step() {
-		m_opcode = memRead(m_pc);
-		m_pc += 1;
+		m_opcode = memRead(m_reg.pc);
+		m_reg.pc += 1;
 
 		try {
 			m_instruction = m_optable.at(m_opcode);
@@ -120,44 +120,44 @@ namespace nes {
 	}
 
 	void CPU::reset() {
-		m_pc = memRead16(0xfffc);
-		m_status = 0x24;
-		m_sp = 0xfd;
+		m_reg.pc = memRead16(0xfffc);
+		m_reg.p.raw = 0x34; // 0b0011010, Interrupt = 1, Break = 1, Unused = 1
+		m_reg.sp = 0xfd;
 
-		m_reg_a = 0x00;
-		m_reg_x = 0x00;
-		m_reg_y = 0x00;
+		m_reg.a = 0x00;
+		m_reg.x = 0x00;
+		m_reg.y = 0x00;
 
 		m_cycles = 8; // Reset takes time.
 	}
 
 	void CPU::irq() {
 		// Is interrupt allowed
-		if (getFlag(I)) {
+		if (m_reg.p.i) {
 			return;
 		}
 
-		stackPush16(m_pc);
+		stackPush16(m_reg.pc);
 
-		setFlag(B, false);
-		setFlag(U, true);
-		setFlag(I, true);
-		stackPush(m_status);
+		m_reg.p.b = false;
+		m_reg.p.u = true;
+		m_reg.p.i = true;
+		stackPush(m_reg.p.raw);
 
-		m_pc = memRead(0xfffe);
+		m_reg.pc = memRead(0xfffe);
 
 		m_cycles = 7; // IRQs take time.
 	}
 
 	void CPU::nmi() {
-		stackPush16(m_pc);
+		stackPush16(m_reg.pc);
 
-		setFlag(B, false);
-		setFlag(U, true);
-		setFlag(I, true);
-		stackPush(m_status);
+		m_reg.p.b = false;
+		m_reg.p.u = true;
+		m_reg.p.i = true;
+		stackPush(m_reg.p.raw);
 
-		m_pc = memRead(0xfffa);
+		m_reg.pc = memRead(0xfffa);
 
 		m_cycles = 8; // NMIs take time.
 	}
@@ -169,7 +169,7 @@ namespace nes {
 		}
 
 		// Get next Opcode
-		auto next_opcode { memRead(m_pc) };
+		auto next_opcode { memRead(m_reg.pc) };
 		std::string opcode_name {};
 		try {
 			opcode_name = m_optable.at(next_opcode).name;
@@ -181,7 +181,8 @@ namespace nes {
 		return fmt::format(
 			"{0:#06x} {1:#04x} {2}      A:{3:#04x} X:{4:#04x} Y:{5:#04x} P:{6:#04x} "
 			"SP:{7:#04x}",
-			m_pc, next_opcode, opcode_name, m_reg_a, m_reg_x, m_reg_y, m_status, m_sp
+			m_reg.pc, next_opcode, opcode_name, m_reg.a, m_reg.x, m_reg.y, m_reg.p.raw,
+			m_reg.sp
 		);
 	}
 
@@ -201,8 +202,8 @@ namespace nes {
 	}
 
 	void CPU::stackPush(u8 data) {
-		memWrite(0x0100 + m_sp, data);
-		m_sp -= 1;
+		memWrite(0x0100 + m_reg.sp, data);
+		m_reg.sp -= 1;
 	}
 
 	void CPU::stackPush16(u16 data) {
@@ -211,8 +212,8 @@ namespace nes {
 	}
 
 	u8 CPU::stackPop() {
-		m_sp += 1;
-		return memRead(0x0100 + m_sp);
+		m_reg.sp += 1;
+		return memRead(0x0100 + m_reg.sp);
 	}
 
 	u16 CPU::stackPop16() {
@@ -230,47 +231,47 @@ namespace nes {
 		case AddressingMode::ACC:
 			break;
 		case AddressingMode::IMM:
-			addr = m_pc;
-			m_pc += 1;
+			addr = m_reg.pc;
+			m_reg.pc += 1;
 
 			break;
 		case AddressingMode::REL:
-			addr = memRead(m_pc);
-			m_pc += 1;
+			addr = memRead(m_reg.pc);
+			m_reg.pc += 1;
 
 			if (addr & 0x80) {
 				addr |= 0xff00;
 			}
 			break;
 		case AddressingMode::ZP0:
-			addr = memRead(m_pc) & 0x00ff;
-			m_pc += 1;
+			addr = memRead(m_reg.pc) & 0x00ff;
+			m_reg.pc += 1;
 			break;
 		case AddressingMode::ZPX:
-			addr = (memRead(m_pc) + m_reg_x) & 0x00ff;
-			m_pc += 1;
+			addr = (memRead(m_reg.pc) + m_reg.x) & 0x00ff;
+			m_reg.pc += 1;
 			break;
 		case AddressingMode::ZPY:
-			addr = (memRead(m_pc) + m_reg_y) & 0x00ff;
-			m_pc += 1;
+			addr = (memRead(m_reg.pc) + m_reg.y) & 0x00ff;
+			m_reg.pc += 1;
 			break;
 		case AddressingMode::ABS:
-			addr = memRead16(m_pc);
-			m_pc += 2;
+			addr = memRead16(m_reg.pc);
+			m_reg.pc += 2;
 			break;
 		case AddressingMode::ABX:
-			addr = memRead16(m_pc) + m_reg_x;
-			m_pc += 2;
-			page_crossed = isPageCrossed(addr - m_reg_x, addr);
+			addr = memRead16(m_reg.pc) + m_reg.x;
+			m_reg.pc += 2;
+			page_crossed = isPageCrossed(addr - m_reg.x, addr);
 			break;
 		case AddressingMode::ABY:
-			addr = memRead16(m_pc) + m_reg_y;
-			m_pc += 2;
-			page_crossed = isPageCrossed(addr - m_reg_y, addr);
+			addr = memRead16(m_reg.pc) + m_reg.y;
+			m_reg.pc += 2;
+			page_crossed = isPageCrossed(addr - m_reg.y, addr);
 			break;
 		case AddressingMode::IND: {
-			auto ptr { memRead16(m_pc) };
-			m_pc += 2;
+			auto ptr { memRead16(m_reg.pc) };
+			m_reg.pc += 2;
 
 			if ((ptr & 0x00ff) == 0x00ff) {
 				// HACK: Simulate page boundary hardware bug.
@@ -280,13 +281,13 @@ namespace nes {
 			}
 		} break;
 		case AddressingMode::IZX:
-			addr = memRead16(memRead(m_pc) + m_reg_x);
-			m_pc += 1;
+			addr = memRead16(memRead(m_reg.pc) + m_reg.x);
+			m_reg.pc += 1;
 			break;
 		case AddressingMode::IZY:
-			addr = memRead16(memRead(m_pc)) + m_reg_y;
-			page_crossed = isPageCrossed(addr - m_reg_y, addr);
-			m_pc += 1;
+			addr = memRead16(memRead(m_reg.pc)) + m_reg.y;
+			page_crossed = isPageCrossed(addr - m_reg.y, addr);
+			m_reg.pc += 1;
 			break;
 		default:
 			break;
@@ -300,25 +301,25 @@ namespace nes {
 	// Flags      : C, V, N, Z
 	void CPU::ADC(u16 addr) {
 		auto m { memRead(addr) };
-		auto result { static_cast<u16>(m_reg_a + m + getFlag(C)) };
+		auto sum { static_cast<u16>(m_reg.a + m + m_reg.p.c) };
 
-		setFlag(C, result > 0xff);
-		setFlag(V, (m_reg_a ^ result) & (m ^ result) & 0x80 != 0x00);
+		m_reg.p.c = sum > 0xff;
+		m_reg.p.v = (m_reg.a ^ sum) & (m ^ sum) & 0x80 != 0x00;
 
-		m_reg_a = result & 0x00ff;
+		m_reg.a = sum & 0x00ff;
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Bitwise logical AND
 	// Result     : A = A & M
 	// Flags      : A, Z, N
 	void CPU::AND(u16 addr) {
-		m_reg_a &= memRead(addr);
+		m_reg.a &= memRead(addr);
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Arithmetic Shift Left
@@ -326,46 +327,46 @@ namespace nes {
 	// Flags      : N, Z, C
 	void CPU::ASL(u16 addr) {
 		if (m_instruction.addressing == AddressingMode::ACC) {
-			setFlag(C, m_reg_a & 0x80);
-			m_reg_a <<= 1;
+			m_reg.p.c = m_reg.a & 0x80;
+			m_reg.a <<= 1;
 
-			setFlag(Z, m_reg_a == 0x00);
-			setFlag(N, m_reg_a & 0x80);
+			m_reg.p.z = m_reg.a == 0x00;
+			m_reg.p.n = m_reg.a & 0x80;
 		} else {
 			auto m { memRead(addr) };
-			setFlag(C, m & 0x80);
+			m_reg.p.z = m & 0x80;
 			m <<= 1;
 			memWrite(addr, m);
 
-			setFlag(Z, m == 0x00);
-			setFlag(N, m & 0x80);
+			m_reg.p.z = m == 0x00;
+			m_reg.p.n = m & 0x80;
 		}
 	}
 
 	// Instruction: Branch if Carry Clear
 	// Result     : if (C == 0) pc = addr
 	void CPU::BCC(u16 addr) {
-		if (!getFlag(C)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (!m_reg.p.c) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Carry Set
 	// Result     : if (C == 1) pc = addr
 	void CPU::BCS(u16 addr) {
-		if (getFlag(C)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (m_reg.p.c) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Equal
 	// Result     : if (Z == 1) pc = addr
 	void CPU::BEQ(u16 addr) {
-		if (getFlag(Z)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (m_reg.p.z) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
@@ -374,89 +375,89 @@ namespace nes {
 	// Flags      : A&M, N=M7, V=M6
 	void CPU::BIT(u16 addr) {
 		auto m { memRead(addr) };
-		setFlag(Z, (m & m_reg_a) == 0x00);
-		setFlag(V, m & 0x40);
-		setFlag(N, m & 0x80);
+		m_reg.p.z = (m & m_reg.a) == 0x00;
+		m_reg.p.v = m & 0x40;
+		m_reg.p.n = m & 0x80;
 	}
 
 	// Instruction: Branch if Negative
 	// Result     : if (N == 1) pc = addr
 	void CPU::BMI(u16 addr) {
-		if (getFlag(N)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (m_reg.p.n) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Not Equal
 	// Result     : if (Z == 0) pc = addr
 	void CPU::BNE(u16 addr) {
-		if (!getFlag(Z)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (!m_reg.p.z) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Positive
 	// Result     : if (N == 0) pc = addr
 	void CPU::BPL(u16 addr) {
-		if (!getFlag(N)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (!m_reg.p.n) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Break
 	// Result     : Program sourced interrupt
 	void CPU::BRK(u16 /*unused*/) {
-		setFlag(I, true);
-		stackPush16(m_pc);
+		m_reg.p.i = true;
+		stackPush16(m_reg.pc);
 
-		stackPush(m_status | B);
+		stackPush(m_reg.p.raw);
 
-		m_pc = memRead16(0xfffe);
+		m_reg.pc = memRead16(0xfffe);
 	}
 
 	// Instruction: Branch if Overflow Clear
 	// Result     : if (V == 0) pc = addr
 	void CPU::BVC(u16 addr) {
-		if (!getFlag(V)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (!m_reg.p.v) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Branch if Overflow Set
 	// Result     : if (V == 1) pc = addr
 	void CPU::BVS(u16 addr) {
-		if (getFlag(V)) {
-			m_pc += addr;
-			m_cycles += isPageCrossed(m_pc, m_pc - addr) ? 2 : 1;
+		if (m_reg.p.v) {
+			m_reg.pc += addr;
+			m_cycles += isPageCrossed(m_reg.pc, m_reg.pc - addr) ? 2 : 1;
 		}
 	}
 
 	// Instruction: Clear Carry Flag
 	// Result     : C = 0
 	void CPU::CLC(u16 /*unused*/) {
-		setFlag(C, false);
+		m_reg.p.c = 0;
 	}
 
 	// Instruction: Clear Decimal Flag
 	// Result     : D = 0
 	void CPU::CLD(u16 /*unused*/) {
-		setFlag(D, false);
+		m_reg.p.c = 0;
 	}
 
 	// Instruction: Clear Interrupt Flag
 	// Result     : I = 0
 	void CPU::CLI(u16 /*unused*/) {
-		setFlag(I, false);
+		m_reg.p.i = 0;
 	}
 
 	// Instruction: Clear Overflow Flag
 	// Result     : V = 0
 	void CPU::CLV(u16 /*unused*/) {
-		setFlag(V, false);
+		m_reg.p.v = 0;
 	}
 
 	// Instruction: Compare accumulator
@@ -465,9 +466,9 @@ namespace nes {
 	void CPU::CMP(u16 addr) {
 		auto m { memRead(addr) };
 
-		setFlag(C, m_reg_a >= m);
-		setFlag(Z, m_reg_a == m);
-		setFlag(N, (m_reg_a - m) & 0x80);
+		m_reg.p.c = m_reg.a >= m;
+		m_reg.p.z = m_reg.a == m;
+		m_reg.p.n = (m_reg.a - m) & 0x80;
 	}
 
 	// Instruction: Compare X register
@@ -476,9 +477,9 @@ namespace nes {
 	void CPU::CPX(u16 addr) {
 		auto m { memRead(addr) };
 
-		setFlag(C, m_reg_x >= m);
-		setFlag(Z, m_reg_x == m);
-		setFlag(N, (m_reg_x - m) & 0x80);
+		m_reg.p.c = m_reg.x >= m;
+		m_reg.p.z = m_reg.x == m;
+		m_reg.p.n = (m_reg.x - m) & 0x80;
 	}
 
 	// Instruction: Compare Y register
@@ -487,9 +488,9 @@ namespace nes {
 	void CPU::CPY(u16 addr) {
 		auto m { memRead(addr) };
 
-		setFlag(C, m_reg_y >= m);
-		setFlag(Z, m_reg_y == m);
-		setFlag(N, (m_reg_y - m) & 0x80);
+		m_reg.p.c = m_reg.y >= m;
+		m_reg.p.z = m_reg.y == m;
+		m_reg.p.n = (m_reg.y - m) & 0x80;
 	}
 
 	// Instruction: Decrement value at memory location
@@ -500,35 +501,38 @@ namespace nes {
 		m -= 1;
 		memWrite(addr, m);
 
-		setFlag(Z, m == 0x00);
-		setFlag(N, m & 0x80);
+		m_reg.p.z = m == 0x00;
+		m_reg.p.n = m & 0x80;
 	}
 
 	// Instruction: Decrement X register
 	// Result     : X = X - 1
 	// Flags      : Z, N
 	void CPU::DEX(u16 /*unused*/) {
-		m_reg_x -= 1;
-		setFlag(Z, m_reg_x == 0x00);
-		setFlag(N, m_reg_x & 0x80);
+		m_reg.x -= 1;
+
+		m_reg.p.z = m_reg.x == 0x00;
+		m_reg.p.n = m_reg.x & 0x80;
 	}
 
 	// Instruction: Decrement Y register
 	// Result     : Y = Y - 1
 	// Flags      : Z, N
 	void CPU::DEY(u16 /*unused*/) {
-		m_reg_y -= 1;
-		setFlag(Z, m_reg_y == 0x00);
-		setFlag(N, m_reg_y & 0x80);
+		m_reg.y -= 1;
+
+		m_reg.p.z = m_reg.y == 0x00;
+		m_reg.p.n = m_reg.y & 0x80;
 	}
 
 	// Instruction: Bitwise logic XOR
 	// Result     : A = A xor M
 	// Flags      : Z, N
 	void CPU::EOR(u16 addr) {
-		m_reg_a ^= memRead(addr);
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.a ^= memRead(addr);
+
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Increment value at memory location
@@ -539,71 +543,71 @@ namespace nes {
 		m += 1;
 		memWrite(addr, m);
 
-		setFlag(Z, m == 0x00);
-		setFlag(N, m & 0x80);
+		m_reg.p.z = m == 0x00;
+		m_reg.p.n = m & 0x80;
 	}
 
 	// Instruction: Increment X register by 1
 	// Result     : X + 1
 	// Flags      : Z, N
 	void CPU::INX(u16 /*unused*/) {
-		m_reg_x += 1;
+		m_reg.x += 1;
 
-		setFlag(Z, m_reg_x == 0x00);
-		setFlag(N, m_reg_x & 0x80);
+		m_reg.p.z = m_reg.x == 0x00;
+		m_reg.p.n = m_reg.x & 0x80;
 	}
 
 	// Instruction: Increment Y register by 1
 	// Result     : Y + 1
 	// Flags      : Z, N
 	void CPU::INY(u16 /*unused*/) {
-		m_reg_y += 1;
+		m_reg.y += 1;
 
-		setFlag(Z, m_reg_y == 0x00);
-		setFlag(N, m_reg_y & 0x80);
+		m_reg.p.z = m_reg.y == 0x00;
+		m_reg.p.n = m_reg.y & 0x80;
 	}
 
 	// Instruction: Jump to location
 	// Result     : PC = addr
 	void CPU::JMP(u16 addr) {
-		m_pc = addr;
+		m_reg.pc = addr;
 	}
 
 	// Instruction: Jump to sub-routine
 	// Result     : Push PC - 1; PC = addr
 	void CPU::JSR(u16 addr) {
-		stackPush16(m_pc - 1);
-		m_pc = addr;
+		stackPush16(m_reg.pc - 1);
+		m_reg.pc = addr;
 	}
 
 	// Instruction: Load the accumulator
 	// Result     : A = M
 	// Flags      : Z, N
 	void CPU::LDA(u16 addr) {
-		m_reg_a = memRead(addr);
+		m_reg.a = memRead(addr);
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Load the X register
 	// Result     : X = M
 	// Flags      : Z, N
 	void CPU::LDX(u16 addr) {
-		m_reg_x = memRead(addr);
+		m_reg.x = memRead(addr);
 
-		setFlag(Z, m_reg_x == 0x00);
-		setFlag(N, m_reg_x & 0x80);
+		m_reg.p.z = m_reg.x == 0x00;
+		m_reg.p.n = m_reg.x & 0x80;
 	}
 
 	// Instruction: Load the Y register
 	// Result     : Y = M
 	// Flags      : Z, N
 	void CPU::LDY(u16 addr) {
-		m_reg_y = memRead(addr);
+		m_reg.y = memRead(addr);
 
-		setFlag(Z, m_reg_y == 0x00);
-		setFlag(N, m_reg_y & 0x80);
+		m_reg.p.z = m_reg.y == 0x00;
+		m_reg.p.n = m_reg.y & 0x80;
 	}
 
 	// Instruction: Arithmetic Shift Right
@@ -611,19 +615,19 @@ namespace nes {
 	// Flags      : N, Z, C
 	void CPU::LSR(u16 addr) {
 		if (m_instruction.addressing == AddressingMode::ACC) {
-			setFlag(C, m_reg_a & 0x01);
-			m_reg_a >>= 1;
+			m_reg.p.c = m_reg.a & 0x01;
+			m_reg.a >>= 1;
 
-			setFlag(Z, m_reg_a == 0x00);
-			setFlag(N, m_reg_a & 0x80);
+			m_reg.p.z = m_reg.a == 0x00;
+			m_reg.p.n = m_reg.a & 0x80;
 		} else {
 			auto m { memRead(addr) };
-			setFlag(C, m & 0x01);
+			m_reg.p.c = m & 0x01;
 			m >>= 1;
 			memWrite(addr, m);
 
-			setFlag(Z, m == 0x00);
-			setFlag(N, m & 0x80);
+			m_reg.p.z = m == 0x00;
+			m_reg.p.n = m & 0x80;
 		}
 	}
 
@@ -637,60 +641,59 @@ namespace nes {
 	// Result     : A = A | M
 	// Flags      : N, Z
 	void CPU::ORA(u16 addr) {
-		m_reg_a |= memRead(addr);
+		m_reg.a |= memRead(addr);
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Push accumulator to stack
 	// Result     : A -> Stack
 	void CPU::PHA(u16 /*unused*/) {
-		stackPush(m_reg_a);
+		stackPush(m_reg.a);
 	}
 
 	// Instruction: Push status register to stack
 	// Result     : Status -> Stack
 	void CPU::PHP(u16 /*unused*/) {
-		stackPush(m_status | B | U); // NOTE: Always set Unused bit to 1.
-		setFlag(B, false);
+		stackPush(m_reg.p.raw | 0x30); // 0bxx11xxxx, Unused = 1, Break = 1
 	}
 
 	// Instruction: Pull accumulator off stack
 	// Result     : A <- Stack
 	void CPU::PLA(u16 /*unused*/) {
-		m_reg_a = stackPop();
+		m_reg.a = stackPop();
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Pull status register off stack
 	// Result     : Status <- Stack
 	void CPU::PLP(u16 /*unused*/) {
-		m_status = (stackPop() & 0xef) | 0x20;
+		m_reg.p.raw = stackPop() | 0x20; // Unused bit is always on.
 	}
 
 	// Instruction: Move bits left and fill 7th bit with old carry value
 	// Result     : A = (A << 1) | OLD_C or M = (M << 1) | OLD_C
 	// Flags      : N, Z, C
 	void CPU::ROL(u16 addr) {
-		auto old_carry { getFlag(C) };
+		auto old_carry { m_reg.p.c };
 
 		if (m_instruction.addressing == AddressingMode::ACC) {
-			setFlag(C, m_reg_a & 0x80);
-			m_reg_a = (m_reg_a << 1) | old_carry;
+			m_reg.p.c = m_reg.a & 0x80;
+			m_reg.a = (m_reg.a << 1) | old_carry;
 
-			setFlag(Z, m_reg_a == 0x00);
-			setFlag(N, m_reg_a & 0x80);
+			m_reg.p.z = m_reg.a == 0x00;
+			m_reg.p.n = m_reg.a & 0x80;
 		} else {
 			auto m { memRead(addr) };
-			setFlag(C, m & 0x80);
+			m_reg.p.c = m & 0x80;
 			m = (m << 1) | old_carry;
 			memWrite(addr, m);
 
-			setFlag(Z, m == 0x00);
-			setFlag(N, m & 0x80);
+			m_reg.p.z = m == 0x00;
+			m_reg.p.n = m & 0x80;
 		}
 	}
 
@@ -698,36 +701,36 @@ namespace nes {
 	// Result     : A = (A >> 1) | (OLD_C >> 7) or M = (M >> 1) | (OLD_C >> 7)
 	// Flags      : N, Z, C
 	void CPU::ROR(u16 addr) {
-		auto old_carry { getFlag(C) << 7 };
+		auto old_carry { m_reg.p.c << 7 };
 
 		if (m_instruction.addressing == AddressingMode::ACC) {
-			setFlag(C, m_reg_a & 0x01);
-			m_reg_a = (m_reg_a >> 1) | old_carry;
+			m_reg.p.c = m_reg.a & 0x01;
+			m_reg.a = (m_reg.a >> 1) | old_carry;
 
-			setFlag(Z, m_reg_a == 0x00);
-			setFlag(N, m_reg_a & 0x80);
+			m_reg.p.z = m_reg.a == 0x00;
+			m_reg.p.n = m_reg.a & 0x80;
 		} else {
 			auto m { memRead(addr) };
-			setFlag(C, m & 0x01);
+			m_reg.p.c = m & 0x01;
 			m = (m >> 1) | old_carry;
 			memWrite(addr, m);
 
-			setFlag(Z, m == 0x00);
-			setFlag(N, m & 0x80);
+			m_reg.p.z = m == 0x00;
+			m_reg.p.n = m & 0x80;
 		}
 	}
 
 	// Instruction: Return from interrupt.
 	// Result     : Status <- Stack and PC <- Stack
 	void CPU::RTI(u16 /*unused*/) {
-		m_status = stackPop() | B | U;
-		m_pc = stackPop16();
+		m_reg.p.raw = stackPop() | 0x20; // Unused bit is always on.
+		m_reg.pc = stackPop16();
 	}
 
 	// Instruction: Return from sub-routine
 	// Result     : PC <- Stack
 	void CPU::RTS(u16 /*unused*/) {
-		m_pc = stackPop16() + 1;
+		m_reg.pc = stackPop16() + 1;
 	}
 
 	// Instruction: Subtract with Borrow In
@@ -735,105 +738,107 @@ namespace nes {
 	// Flags      : C, V, N, Z
 	void CPU::SBC(u16 addr) {
 		auto m { memRead(addr) };
-		u16 result { static_cast<u16>(static_cast<u16>(m_reg_a) - m - (1 - getFlag(C))) };
+		u16 result { static_cast<u16>(static_cast<u16>(m_reg.a) - m - (1 - m_reg.p.c)) };
 
-		setFlag(C, result > 0xff);
-		setFlag(V, ((m_reg_a ^ result) & (~m ^ result) & 0x80) != 0x00);
+		m_reg.p.c = result > 0xff;
+		m_reg.p.v = ((m_reg.a ^ result) & (~m ^ result) & 0x80) != 0x00;
 
-		m_reg_a = result & 0x00ff;
+		m_reg.a = result & 0x00ff;
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Set Carry flag
 	// Result     : C = 1
 	void CPU::SEC(u16 /*unused*/) {
-		setFlag(C, true);
+		m_reg.p.c = 1;
 	}
 
 	// Instruction: Set Decimal flag
 	// Result     : D = 1
 	void CPU::SED(u16 /*unused*/) {
-		setFlag(D, true);
+		m_reg.p.d = 1;
 	}
 
 	// Instruction: Set Interrupt flag
 	// Result     : I = 1
 	void CPU::SEI(u16 /*unused*/) {
-		setFlag(I, true);
+		m_reg.p.i = 1;
 	}
 
 	// Instruction: Stores the contents of the Accumulator into memory.
 	// Result     : M = A
 	void CPU::STA(u16 addr) {
-		memWrite(addr, m_reg_a);
+		memWrite(addr, m_reg.a);
 	}
 
 	// Instruction: Stores the contents of the X register into memory.
 	// Result     : M = X
 	void CPU::STX(u16 addr) {
-		memWrite(addr, m_reg_x);
+		memWrite(addr, m_reg.x);
 	}
 
 	// Instruction: Stores the contents of the Y register into memory.
 	// Result     : M = Y
 	void CPU::STY(u16 addr) {
-		memWrite(addr, m_reg_y);
+		memWrite(addr, m_reg.y);
 	}
 
 	// Instruction: Copy contents of the Accumulator into the X register.
 	// Result     : X = A
 	// Flags      : Z, N
 	void CPU::TAX(u16 /*unused*/) {
-		m_reg_x = m_reg_a;
+		m_reg.x = m_reg.a;
 
-		setFlag(Z, m_reg_x == 0x00);
-		setFlag(N, m_reg_x & 0x80);
+		m_reg.p.z = m_reg.x == 0x00;
+		m_reg.p.n = m_reg.x & 0x80;
 	}
 
 	// Instruction: Copy contents of the Accumulator into the Y register.
 	// Result     : Y = A
 	// Flags      : Z, N
 	void CPU::TAY(u16 /*unused*/) {
-		m_reg_y = m_reg_a;
+		m_reg.y = m_reg.a;
 
-		setFlag(Z, m_reg_y == 0x00);
-		setFlag(N, m_reg_y & 0x80);
+		m_reg.p.z = m_reg.y == 0x00;
+		m_reg.p.n = m_reg.y & 0x80;
 	}
 
 	// Instruction: Copy contents of the Stack Pointer into the X register.
 	// Result     : X = SP
 	// Flags      : Z, N
 	void CPU::TSX(u16 /*unused*/) {
-		m_reg_x = m_sp;
-		setFlag(Z, m_reg_x == 0x00);
-		setFlag(N, m_reg_x & 0x80);
+		m_reg.x = m_reg.sp;
+
+		m_reg.p.z = m_reg.x == 0x00;
+		m_reg.p.n = m_reg.x & 0x80;
 	}
 
 	// Instruction: Copy contents of the X register into the Accumulator.
 	// Result     : A = X
 	// Flags      : Z, N
 	void CPU::TXA(u16 /*unused*/) {
-		m_reg_a = m_reg_x;
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.a = m_reg.x;
+
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Copy contents of the X register into the Stack Pointer.
 	// Result     : SP = X
 	void CPU::TXS(u16 /*unused*/) {
-		m_sp = m_reg_x;
+		m_reg.sp = m_reg.x;
 	}
 
 	// Instruction: Copy contents of the Y register into the Accumulator.
 	// Result     : A = Y
 	// Flags      : Z, N
 	void CPU::TYA(u16 /*unused*/) {
-		m_reg_a = m_reg_y;
+		m_reg.a = m_reg.y;
 
-		setFlag(Z, m_reg_a == 0x00);
-		setFlag(N, m_reg_a & 0x80);
+		m_reg.p.z = m_reg.a == 0x00;
+		m_reg.p.n = m_reg.a & 0x80;
 	}
 
 	// Instruction: Simply do nothing

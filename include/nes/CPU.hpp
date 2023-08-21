@@ -1,7 +1,8 @@
 #ifndef _NES_CPU_HPP_
 #define _NES_CPU_HPP_
 
-#include "types.hpp"
+#include "common/BitField.hpp"
+#include "common/types.hpp"
 
 #include <array>
 #include <string>
@@ -11,87 +12,63 @@ namespace nes {
 	class Bus;
 
 	class CPU {
-		public:
-			CPU();
-			CPU(const CPU&) = delete;
-			CPU& operator=(const CPU&) = delete;
+	public:
+		CPU();
+		CPU(const CPU&) = delete;
+		CPU& operator=(const CPU&) = delete;
 
-			enum Flags : u8 {
-				C = (1 << 0), // Carry bit.
-				Z = (1 << 1), // Zero
-				I = (1 << 2), // Disable Interrupts
-				D = (1 << 3), // Decimal Mode
-				B = (1 << 4), // Break
-				U = (1 << 5), // Unused
-				V = (1 << 6), // Overflow
-				N = (1 << 7), // Negative
-			};
+		void connectBus(Bus *bus);
 
-			void connectBus(Bus *bus);
+		void clock();
+		void step();
+		void reset();
 
-			void clock();
-			void step();
-			void reset();
+		void irq();
+		void nmi();
 
-			void irq();
-			void nmi();
+		inline void setPC(u16 pc) { m_reg.pc = pc; }
 
-			inline void setPC(u16 pc) { m_pc = pc; }
+		[[nodiscard]] inline u8 getCycles() const { return m_cycles; }
 
-			[[nodiscard]] inline u16 getPC() const { return m_pc; }
+		[[nodiscard]] std::string getDebugString() const;
 
-			inline void setFlag(Flags flag, bool active) {
-				if (active) {
-					m_status |= flag;
-				} else {
-					m_status &= (~flag);
-				}
-			}
+	private:
+		enum AddressingMode {
+			IMP, // Implied       : No operand
+			ACC, // Accumulator   : No operand
+			IMM, // Immediate     : #VALUE
+			REL, // Relative      : $ADDR8 used with Branch Instructions
+			ZP0, // ZeroPage      : $ADDR8
+			ZPX, // ZeroPage, X   : $ADDR8 + X
+			ZPY, // ZeroPage, Y   : $ADDR8 + Y
+			ABS, // Absolute      : $ADDR16
+			ABX, // Absolute, X   : $ADDR16 + X
+			ABY, // Absolute, Y   : $ADDR16 + Y
+			IND, // Indirect      : ($ADDR16) used only with JMP
+			IZX, // (Indirect, X) : ($ADDR16 + X)
+			IZY, // (Indirect), Y : ($ADDR16) + Y
+		};
 
-			[[nodiscard]] inline u8 getFlag(Flags flag) const { return m_status & flag; }
+		struct Opcode {
+			std::string name;
+			AddressingMode addressing;
+			void (CPU::*operation)(u16) = nullptr;
+			u8 cycles { 0 };
+			u8 page_cycles { 0 };
+		};
 
-			[[nodiscard]] inline u8 getCycles() const { return m_cycles; }
+		[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
+		[[nodiscard]] u16 memRead16(u16 addr, bool ro = false) const;
+		void memWrite(u16 addr, u8 data);
 
-			[[nodiscard]] std::string getDebugString() const;
+		void stackPush(u8 data);
+		void stackPush16(u16 data);
+		[[nodiscard]] u8 stackPop();
+		[[nodiscard]] u16 stackPop16();
 
-		private:
-			enum AddressingMode {
-				IMP, // Implied       : No operand
-				ACC, // Accumulator   : No operand
-				IMM, // Immediate     : #VALUE
-				REL, // Relative      : $ADDR8 used with Branch Instructions
-				ZP0, // ZeroPage      : $ADDR8
-				ZPX, // ZeroPage, X   : $ADDR8 + X
-				ZPY, // ZeroPage, Y   : $ADDR8 + Y
-				ABS, // Absolute      : $ADDR16
-				ABX, // Absolute, X   : $ADDR16 + X
-				ABY, // Absolute, Y   : $ADDR16 + Y
-				IND, // Indirect      : ($ADDR16) used only with JMP
-				IZX, // (Indirect, X) : ($ADDR16 + X)
-				IZY, // (Indirect), Y : ($ADDR16) + Y
-			};
+		[[nodiscard]] std::tuple<u16, bool> getOperandAddress(AddressingMode mode);
 
-			struct Opcode {
-				public:
-					std::string name;
-					AddressingMode addressing;
-					void (CPU::*operation)(u16) = nullptr;
-					u8 cycles { 0 };
-					u8 page_cycles { 0 };
-			};
-
-			[[nodiscard]] u8 memRead(u16 addr, bool ro = false) const;
-			[[nodiscard]] u16 memRead16(u16 addr, bool ro = false) const;
-			void memWrite(u16 addr, u8 data);
-
-			void stackPush(u8 data);
-			void stackPush16(u16 data);
-			[[nodiscard]] u8 stackPop();
-			[[nodiscard]] u16 stackPop16();
-
-			[[nodiscard]] std::tuple<u16, bool> getOperandAddress(AddressingMode mode);
-
-			// clang-format off
+		// clang-format off
 			void ADC(u16 addr); void AND(u16 addr); void ASL(u16 addr); void BCC(u16 addr);
 			void BCS(u16 addr); void BEQ(u16 addr); void BIT(u16 addr); void BMI(u16 addr);
 			void BNE(u16 addr); void BPL(u16 addr); void BRK(u16 addr); void BVC(u16 addr);
@@ -108,26 +85,41 @@ namespace nes {
 			void TSX(u16 addr); void TXA(u16 addr); void TXS(u16 addr); void TYA(u16 addr);
 
 			void NIL(u16 addr); // Catch all "illegal" opcodes
-			// clang-format on
 
-			// Registers
-			u16 m_pc { 0x0000 };  // Program Counter
-			u8 m_sp { 0xfd };     // Stack Pointer
-			u8 m_status { 0x24 }; // Status Register
-			u8 m_reg_a { 0x00 };  // Accumulator Register
-			u8 m_reg_x { 0x00 };  // X Register
-			u8 m_reg_y { 0x00 };  // Y Register
+		// clang-format on
 
-			u8 m_cycles { 8 };
+		// Registers
+		struct {
+			u16 pc { 0x0000 }; // Program Counter
+			u8 sp { 0xfd };    // Stack Pointer
 
-			Bus *m_bus { nullptr };
+			u8 a { 0x00 }; // Accumulator Register
+			u8 x { 0x00 }; // X Register
+			u8 y { 0x00 }; // Y Register
 
-			// NOTE: Convenience variables.
-			u8 m_opcode {};
-			Opcode m_instruction {};
+			union { // CPU status
+				u8 raw;
+				BitField<7> n; // Negative
+				BitField<6> v; // Overflow
+				BitField<5> u; // Unused
+				BitField<4> b; // Break
+				BitField<3> d; // Decimal Mode
+				BitField<2> i; // Disable Interrupts
+				BitField<1> z; // Zero
+				BitField<0> c; // Carry bit.
+			} p;
+		} m_reg;
 
-			// Lookup table with all opcodes.
-			std::array<Opcode, 256> m_optable;
+		u8 m_cycles { 8 };
+
+		Bus *m_bus { nullptr };
+
+		// Convenience variables.
+		u8 m_opcode {};
+		Opcode m_instruction {};
+
+		// Lookup table with all opcodes.
+		std::array<Opcode, 256> m_optable;
 	};
 } // namespace nes
 
