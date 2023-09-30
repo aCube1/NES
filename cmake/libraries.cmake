@@ -1,6 +1,6 @@
 include_guard()
 
-set(LIBS_DIR ${PROJECT_SOURCE_DIR}/libs)
+set(LIBS_DIR ${PROJECT_SOURCE_DIR}/vendor)
 
 function(link_default_libraries target)
 	find_package(
