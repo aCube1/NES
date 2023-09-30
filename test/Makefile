@@ -1,26 +1,38 @@
-ROM := rom.nes
+BIN_DIR := bin
+SRC_DIR := src
 
-BUILD_DIR := build
-SRCS := rom.s
-OBJS := $(SRCS:%.s=$(BUILD_DIR)/%.o)
+ROM := game.nes
+EMU := fceux
 
-ASMFLAGS := -t nes
-LINKFLAGS := --config ines.cfg
+SRCS := rom.s boot.s main.s
+OBJS := $(SRCS:%.s=$(BIN_DIR)/%.o)
 
-.PHONY: default clean
+ASSEMBLER := ca65
+LINKER    := ld65
+ASMFLAGS  := -I include -t nes
+LINKFLAGS := -C ines.cfg -m $(ROM:%.nes=%.map)
+
+.PHONY: all debug run clean
+
+.DEFAULT: all
 .DELETE_ON_ERROR: clean
 
-default: all
-all: $(ROM)
+all: $(BIN_DIR) $(ROM)
 
-$(BUILD_DIR):
-	-mkdir $(BUILD_DIR)
+debug: ASMFLAGS += -g
+debug: clean all
 
-$(OBJS): $(SRCS) $(BUILD_DIR)
-	ca65 $(ASMFLAGS) $< -o $@
+$(BIN_DIR):
+	mkdir -p $@
+
+$(BIN_DIR)/%.o: $(SRC_DIR)/%.s
+	$(ASSEMBLER) $(ASMFLAGS) $? -o $@
 
 $(ROM): $(OBJS)
-	ld65 $^ -o $@ $(LINKFLAGS)
+	$(LINKER) $(LINKFLAGS) $^ -o $@
+
+run: $(ROM)
+	$(EMU) $(ROM)
 
 clean:
-	rm -r $(OBJS)
+	@rm -rv $(OBJS) $(ROM)
