@@ -1,6 +1,5 @@
 BasedOnStyle: LLVM
 Language: Cpp
-Standard: c++17
 IndentWidth: 4
 TabWidth: 4
 AccessModifierOffset: -4
@@ -35,7 +34,7 @@ FixNamespaceComments: true
 IndentAccessModifiers: false
 IndentPPDirectives: AfterHash
 IndentWrappedFunctionNames: true
-NamespaceIndentation: All
+NamespaceIndentation: Inner
 
 Cpp11BracedListStyle: false
 MaxEmptyLinesToKeep: 1

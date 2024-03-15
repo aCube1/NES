@@ -25,11 +25,6 @@ set_property(
 		STRINGS
 			"Debug"
 			"Release"
+			"RelWithDebInfo"
+			"MinSizeRel"
 )
-
-# Enable CCACHE.
-find_program(CCACHE_PROGRAM ccache)
-if(CCACHE_PROGRAM)
-    set_property(GLOBAL PROPERTY CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-    set_property(GLOBAL PROPERTY CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
-endif()

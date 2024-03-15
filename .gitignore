@@ -1,9 +1,3 @@
 # Directiories
 build/
 .cache/
-bin/
-
-# Files
-.clangd
-*.nes
-*.map

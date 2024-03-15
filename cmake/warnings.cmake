@@ -49,7 +49,7 @@ function(set_target_warnings target)
 	target_compile_options(
 		${target}
 		PRIVATE
-			${warnings}
+			$<$<COMPILE_LANGUAGE:C,CXX>:${warnings}>
 	)
 endfunction()
 
