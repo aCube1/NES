@@ -3,9 +3,9 @@
 
 #include <stdio.h>
 
-#define bit_set(data, flag)   ((data) |= (flag))
-#define bit_clear(data, flag) ((data) &= ~(flag))
-#define bit_check(data, flag) ((data) & (flag))
+#define flag_set(data, flag)   ((data) |= (flag))
+#define flag_clear(data, flag) ((data) &= ~(flag))
+#define flag_check(data, flag) ((data) & (flag))
 
 void *xcalloc(unsigned long count, unsigned long size);
 void *xrealloc(void *ptr, unsigned long size);

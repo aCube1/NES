@@ -3,6 +3,19 @@
 
 #include "common/types.h"
 
+enum CpuInterrupt {
+	INTERRUPT_NONE,
+	INTERRUPT_NMI,   // Non-Maskable Interrupt
+	INTERRUPT_RESET, // Reset Interrupt
+	INTERRUPT_IRQ,   // Interrupt Request
+	INTERRUPT_BRK,   // BRK Interrupt
+};
+
+enum CpuState {
+	STATE_BRANCH = 0x01,
+	STATE_INTERRUPT = 0x02,
+};
+
 enum ProgramStatus {
 	STATUS_C = 0x01, // [0] - Carry Flag
 	STATUS_Z = 0x02, // [1] - Zero Flag
@@ -18,7 +31,7 @@ typedef struct CPU {
 	struct {
 		u16 pc; // Program Counter
 		u8 sp;  // Stack Pointer
-		u8 st;  // Status NV.B.IZC
+		u8 st;  // Processor Status[NV.BDIZC]
 
 		u8 a; // Accumulator
 		u8 x; // X Index
@@ -26,12 +39,19 @@ typedef struct CPU {
 	} reg;
 
 	u8 cycles; // Remaining cycles
+	u8 state;
+	u8 interrupt; // Next pending interrupt
 
 	u8 ram[UINT16_MAX + 1];
 } CPU;
 
 void cpu_powerup(CPU *cpu);
 void cpu_shutdown(CPU *cpu);
+
+void cpu_clock(CPU *cpu);
+
+void cpu_reset(CPU *cpu);
+void cpu_interrupt(CPU *cpu, u8 interrupt);
 
 u8 ram_read8(const CPU *cpu, u16 addr);
 u16 ram_read16(const CPU *cpu, u16 addr);
