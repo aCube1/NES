@@ -38,8 +38,6 @@ void log_message(int level, const char *file, int line, const char *fmt, ...) {
 	va_list args;
 	va_start(args, fmt);
 	vfprintf(output, fmt, args);
-	va_end(args);
-
 	fprintf(output, "%s", "\n");
-	fflush(output);
+	va_end(args);
 }
