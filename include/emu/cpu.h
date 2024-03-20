@@ -38,9 +38,10 @@ typedef struct CPU {
 		u8 y; // Y Index
 	} reg;
 
-	u8 cycles; // Remaining cycles
 	u8 state;
 	u8 interrupt; // Next pending interrupt
+	u8 cycles;    // Remaining cycles
+	u8 opcode;    // Current fetched opcode
 
 	u8 ram[UINT16_MAX + 1];
 } CPU;

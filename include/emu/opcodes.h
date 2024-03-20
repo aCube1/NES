@@ -24,17 +24,24 @@ enum AddressingMode {
 typedef struct CPU CPU;
 typedef void (*Instruction)(CPU *);
 
+typedef struct Address {
+	u16 addr;
+	u8 bytes;
+	bool has_crossed;
+} Address;
+
 typedef struct Opcode {
 	Instruction exec;
 	const char *name;
 	u8 mode;
 	u8 cycles;
-	bool cross;
+	u8 extra;
 } Opcode;
 
 extern const Opcode opcode_lookup[OPCODE_COUNT];
 
-void opcode_execute(CPU *cpu);
+void opcode_decode(CPU *cpu);
+Address opcode_getaddress(const CPU *cpu, enum AddressingMode mode);
 
 // clang-format off
 void op_adc(CPU *cpu); void op_and(CPU *cpu); void op_asl(CPU *cpu); void op_bcc(CPU *cpu);

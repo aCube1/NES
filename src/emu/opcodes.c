@@ -1,5 +1,11 @@
 #include "emu/opcodes.h"
 
+#include "emu/cpu.h"
+
+#include <assert.h>
+
+#define is_pagecrossed(a, b) ((a) & 0xff00) != ((b) & 0xff00)
+
 // clang-format off
 const Opcode opcode_lookup[OPCODE_COUNT] = {
 	{op_brk, "BRK", ADDR_IMP, 7, 0}, {op_ora, "ORA", ADDR_IDX, 6, 0}, {op_nil, "JAM", ADDR_IMP, 0, 0}, {op_nil, "SLO", ADDR_IDX, 8, 0},
@@ -68,62 +74,139 @@ const Opcode opcode_lookup[OPCODE_COUNT] = {
 	{op_nop, "NOP", ADDR_ABX, 4, 1}, {op_sbc, "SBC", ADDR_ABX, 4, 1}, {op_inc, "INC", ADDR_ABX, 7, 0}, {op_nil, "ISC", ADDR_ABX, 7, 0},
 }; // clang-format on
 
-void opcode_execute(CPU *cpu) {
-	(void)cpu;
+void opcode_decode(CPU *cpu) {
+	cpu->opcode = ram_read8(cpu, cpu->reg.pc);
+	cpu->reg.pc += 1;
+
+	Opcode op = opcode_lookup[cpu->opcode];
+
+	Address addr = opcode_getaddress(cpu, op.mode);
+	cpu->reg.pc += addr.bytes;
+
+	op.exec(cpu);
+
+	cpu->cycles += op.cycles;
+	if (addr.has_crossed) {
+		cpu->cycles += op.extra;
+	}
+}
+
+Address opcode_getaddress(const CPU *cpu, enum AddressingMode mode) {
+	Address addr = { 0 };
+
+	switch (mode) {
+	case ADDR_IMP: // FALLTHROUGH
+	case ADDR_ACC:
+		break;
+	case ADDR_IMM:
+		addr.addr = cpu->reg.pc;
+		addr.bytes = 1;
+		break;
+	case ADDR_REL:
+		addr.addr = ram_read8(cpu, cpu->reg.pc);
+		addr.bytes = 1;
+
+		// if (addr.addr & 0x80) {
+		//	addr |= 0xff00;
+		// }
+		break;
+	case ADDR_ZP0:
+		addr.addr = ram_read8(cpu, cpu->reg.pc);
+		addr.bytes = 1;
+		break;
+	case ADDR_ZPX:
+		addr.addr = ram_read8(cpu, cpu->reg.pc) + cpu->reg.x;
+		addr.bytes = 1;
+		break;
+	case ADDR_ZPY:
+		addr.addr = ram_read8(cpu, cpu->reg.pc) + cpu->reg.y;
+		addr.bytes = 1;
+		break;
+	case ADDR_ABS:
+		addr.addr = ram_read16(cpu, cpu->reg.pc);
+		addr.bytes = 2;
+		break;
+	case ADDR_ABX:
+		addr.addr = ram_read16(cpu, cpu->reg.pc) + cpu->reg.x;
+		addr.bytes = 2;
+		addr.has_crossed = is_pagecrossed(addr.addr - cpu->reg.x, addr.addr);
+		break;
+	case ADDR_ABY:
+		addr.addr = ram_read16(cpu, cpu->reg.pc) + cpu->reg.y;
+		addr.bytes = 2;
+		addr.has_crossed = is_pagecrossed(addr.addr - cpu->reg.y, addr.addr);
+		break;
+	case ADDR_IND: {
+		u16 ptr = ram_read16(cpu, cpu->reg.pc);
+		u16 hi = ram_read8(cpu, ptr + 1);
+		u16 lo = ram_read8(cpu, ptr);
+
+		// Simulate page boundary bug
+		if ((ptr & 0x00ff) == 0xff) {
+			hi = ram_read8(cpu, ptr & 0xff00); // $xx00
+			lo = ram_read8(cpu, ptr);          // $xxff
+		}
+
+		addr.addr = (hi << 8) | lo;
+		addr.bytes = 2;
+	} break;
+	case ADDR_IDX:
+		addr.addr = ram_read16(cpu, ram_read8(cpu, cpu->reg.pc) + cpu->reg.x);
+		addr.bytes = 1;
+		break;
+	case ADDR_IZY:
+		addr.addr = ram_read16(cpu, ram_read8(cpu, cpu->reg.pc)) + cpu->reg.y;
+		addr.bytes = 1;
+		addr.has_crossed = is_pagecrossed(addr.addr - cpu->reg.y, addr.addr);
+		break;
+	default:
+		assert(0);
+	}
+
+	return addr;
 }
 
 void op_adc(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_and(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_asl(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bcc(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bcs(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_beq(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bit(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bmi(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bne(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_bpl(CPU *cpu) {
-
 	(void)cpu;
 }
 
 void op_brk(CPU *cpu) {
-
 	(void)cpu;
 }
 
@@ -308,5 +391,5 @@ void op_tya(CPU *cpu) {
 }
 
 void op_nil(CPU *cpu) {
-	(void)cpu;
+	op_nop(cpu);
 }

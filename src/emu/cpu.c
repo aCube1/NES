@@ -2,6 +2,7 @@
 
 #include "common/log.h"
 #include "common/utils.h"
+#include "emu/opcodes.h"
 
 #include <assert.h>
 #include <string.h>
@@ -82,7 +83,7 @@ void cpu_clock(CPU *cpu) {
 		if (cpu->interrupt != INTERRUPT_NONE) {
 			fetch_interrupt(cpu);
 		} else {
-			// TODO: Execute CPU opcode step: FETCH, DECODE, EXECUTE
+			opcode_decode(cpu);
 		}
 	}
 
