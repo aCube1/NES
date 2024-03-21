@@ -1,5 +1,6 @@
 #include "emu/opcodes.h"
 
+#include "common/utils.h"
 #include "emu/cpu.h"
 
 #include <assert.h>
@@ -74,6 +75,53 @@ const Opcode opcode_lookup[OPCODE_COUNT] = {
 	{op_nop, "NOP", ADDR_ABX, 4, 1}, {op_sbc, "SBC", ADDR_ABX, 4, 1}, {op_inc, "INC", ADDR_ABX, 7, 0}, {op_nil, "ISC", ADDR_ABX, 7, 0},
 }; // clang-format on
 
+static void flag_update(u8 *data, u8 flag, bool set) {
+	flag_clear(*data, flag);
+
+	if (set) {
+		flag_set(*data, flag);
+	}
+}
+
+static void fetch_negative_zero(CPU *cpu, u8 data) {
+	flag_update(&cpu->reg.st, STATUS_N, (data & 0x80) > 0);
+	flag_update(&cpu->reg.st, STATUS_N, data == 0);
+}
+
+static void fetch_carry(CPU *cpu, u16 data) {
+	flag_update(&cpu->reg.st, STATUS_C, data > 0xff);
+}
+
+// Overflow flag explanation:
+// https://www.righto.com/2012/12/the-6502-overflow-flag-explained.html
+static void fetch_overflow(CPU *cpu, u16 m, u16 n, u16 result) {
+	bool has_overflow = !((m ^ n) & 0x80) && ((m ^ result) & 0x80);
+	flag_update(&cpu->reg.st, STATUS_V, has_overflow);
+}
+
+static void check_branch(CPU *cpu, i8 offset, u8 flag, u8 set) {
+	if (flag_check(cpu->reg.st, flag) != set) {
+		return;
+	}
+
+	cpu->reg.pc += offset;
+	cpu->cycles += 1;
+
+	if (is_pagecrossed(cpu->reg.pc - offset, cpu->reg.pc)) {
+		cpu->cycles += 1;
+	}
+}
+
+static u8 alu_add(CPU *cpu, u8 a, u8 b) {
+	u16 result = a + b + flag_check(cpu->reg.st, STATUS_C);
+
+	fetch_overflow(cpu, a, b, result);
+	fetch_carry(cpu, result);
+	fetch_negative_zero(cpu, result);
+
+	return result;
+}
+
 void opcode_decode(CPU *cpu) {
 	cpu->opcode = ram_read8(cpu, cpu->reg.pc);
 	cpu->reg.pc += 1;
@@ -83,7 +131,7 @@ void opcode_decode(CPU *cpu) {
 	Address addr = opcode_getaddress(cpu, op.mode);
 	cpu->reg.pc += addr.bytes;
 
-	op.exec(cpu);
+	op.exec(cpu, addr.addr);
 
 	cpu->cycles += op.cycles;
 	if (addr.has_crossed) {
@@ -166,230 +214,608 @@ Address opcode_getaddress(const CPU *cpu, enum AddressingMode mode) {
 	return addr;
 }
 
-void op_adc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Add Memory to Accumulator with Carry
+// Execution: A = A + M + C
+// Flags: C Z I D B - V N
+// 		  + + . . . . + +
+void op_adc(CPU *cpu, u16 addr) {
+	u8 m = ram_read8(cpu, addr);
+
+	cpu->reg.a = alu_add(cpu, cpu->reg.a, m);
 }
 
-void op_and(CPU *cpu) {
-	(void)cpu;
+// Instruction: Logical AND Memory with Accumulator
+// Execution: A = A AND M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_and(CPU *cpu, u16 addr) {
+	cpu->reg.a &= ram_read8(cpu, addr);
+
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_asl(CPU *cpu) {
-	(void)cpu;
+// Instruction: Arithmetic shift left
+// Execution: A|M = A|M << 1
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_asl(CPU *cpu, u16 addr) {
+	u16 data = cpu->reg.a;
+
+	if (opcode_lookup[cpu->opcode].mode != ADDR_ACC) {
+		data = ram_read8(cpu, addr);
+	}
+
+	data <<= 1;
+
+	fetch_carry(cpu, data);
+	fetch_negative_zero(cpu, data);
+
+	if (opcode_lookup[cpu->opcode].mode == ADDR_ACC) {
+		cpu->reg.a = data;
+	} else {
+		ram_write8(cpu, addr, data);
+	}
 }
 
-void op_bcc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on Carry clear
+// Execution: PC = offset if C = 0
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bcc(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_C, 0);
 }
 
-void op_bcs(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on Carry set
+// Execution: PC = offset if C = 1
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bcs(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_C, 1);
 }
 
-void op_beq(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch if equal
+// Execution: PC = offset if Z = 0
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_beq(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_Z, 0);
 }
 
-void op_bit(CPU *cpu) {
-	(void)cpu;
+// Instruction: Test bits in Memory with Accumulator
+// Execution: A&M, N=M7, V=M6
+// Flags: C Z I D B - V  N
+// 		  . + . . . . M6 M7
+void op_bit(CPU *cpu, u16 addr) {
+	u8 data = ram_read8(cpu, addr);
+
+	flag_update(&cpu->reg.st, STATUS_Z, (cpu->reg.a & data) == 0x00);
+	flag_update(&cpu->reg.st, STATUS_V, data & 0x40);
+	flag_update(&cpu->reg.st, STATUS_N, data & 0x80);
 }
 
-void op_bmi(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on minus
+// Execution: PC = offset if N = 1
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bmi(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_N, 1);
 }
 
-void op_bne(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch if not equal
+// Execution: PC = offset if Z = 1
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bne(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_Z, 1);
 }
 
-void op_bpl(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on plus
+// Execution: PC = offset if N = 0
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bpl(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_N, 0);
 }
 
-void op_brk(CPU *cpu) {
-	(void)cpu;
+// Instruction: Force break
+// Execution: Push PC, Push S, PC = $fffe, I = 1
+// Flags: C Z I D B - V N
+// 		  . . 1 . . . . .
+void op_brk(CPU *cpu, u16 addr) {
+	(void)addr;
+	cpu_interrupt(cpu, INTERRUPT_BRK);
 }
 
-void op_bvc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on Overflow clear
+// Execution: PC = offset if V = 0
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bvc(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_V, 0);
 }
 
-void op_bvs(CPU *cpu) {
-	(void)cpu;
+// Instruction: Branch on Overflow set
+// Execution: PC = offset if V = 1
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_bvs(CPU *cpu, u16 addr) {
+	check_branch(cpu, (i8)addr, STATUS_V, 1);
 }
 
-void op_clc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Clear Carry flag
+// Execution: C = 0
+// Flags: C Z I D B - V N
+// 		  1 . . . . . . .
+void op_clc(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_clear(cpu->reg.st, STATUS_C);
 }
 
-void op_cld(CPU *cpu) {
-	(void)cpu;
+// Instruction: Clear Decimal flag
+// Execution: D = 0
+// Flags: C Z I D B - V N
+// 		  . . . 1 . . . .
+void op_cld(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_clear(cpu->reg.st, STATUS_D);
 }
 
-void op_cli(CPU *cpu) {
-	(void)cpu;
+// Instruction: Clear Interrupt flag
+// Execution: I = 0
+// Flags: C Z I D B - V N
+// 		  . . 1 . . . . .
+void op_cli(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_clear(cpu->reg.st, STATUS_I);
 }
 
-void op_clv(CPU *cpu) {
-	(void)cpu;
+// Instruction: Clear Overflow flag
+// Execution: V = 0
+// Flags: C Z I D B - V N
+// 		  . . . . . . 1 .
+void op_clv(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_clear(cpu->reg.st, STATUS_V);
 }
 
-void op_cmp(CPU *cpu) {
-	(void)cpu;
+// Instruction: Compare Memory with Accumulator
+// Execution: A - M
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_cmp(CPU *cpu, u16 addr) {
+	u16 diff = cpu->reg.a - ram_read8(cpu, addr);
+
+	flag_update(&cpu->reg.st, STATUS_C, diff & 0xff00);
+	fetch_negative_zero(cpu, diff);
 }
 
-void op_cpx(CPU *cpu) {
-	(void)cpu;
+// Instruction: Compare Memory with Index X
+// Execution: X - M
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_cpx(CPU *cpu, u16 addr) {
+	u16 diff = cpu->reg.x - ram_read8(cpu, addr);
+
+	flag_update(&cpu->reg.st, STATUS_C, diff & 0xff00);
+	fetch_negative_zero(cpu, diff);
 }
 
-void op_cpy(CPU *cpu) {
-	(void)cpu;
+// Instruction: Compare Memory with Index Y
+// Execution: Y - M
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_cpy(CPU *cpu, u16 addr) {
+	u16 diff = cpu->reg.y - ram_read8(cpu, addr);
+
+	flag_update(&cpu->reg.st, STATUS_C, diff & 0xff00);
+	fetch_negative_zero(cpu, diff);
 }
 
-void op_dec(CPU *cpu) {
-	(void)cpu;
+// Instruction: Decrement Memory by 1
+// Execution: M = M - 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_dec(CPU *cpu, u16 addr) {
+	u8 data = ram_read8(cpu, addr);
+	data -= 1;
+
+	ram_write8(cpu, addr, data);
+	fetch_negative_zero(cpu, data);
 }
 
-void op_dex(CPU *cpu) {
-	(void)cpu;
+// Instruction: Decrement Index X by 1
+// Execution: X = X - 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_dex(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.x -= 1;
+	fetch_negative_zero(cpu, cpu->reg.x);
 }
 
-void op_dey(CPU *cpu) {
-	(void)cpu;
+// Instruction: Decrement Index Y by 1
+// Execution: Y = Y - 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_dey(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.y -= 1;
+	fetch_negative_zero(cpu, cpu->reg.y);
 }
 
-void op_eor(CPU *cpu) {
-	(void)cpu;
+// Instruction: Logical XOR Memory with Accumulator
+// Execution: A = A XOR M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_eor(CPU *cpu, u16 addr) {
+	cpu->reg.a ^= ram_read8(cpu, addr);
+
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_inc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Increment Memory by 1
+// Execution: M = M + 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_inc(CPU *cpu, u16 addr) {
+	u8 data = ram_read8(cpu, addr);
+	data += 1;
+
+	ram_write8(cpu, addr, data);
+	fetch_negative_zero(cpu, data);
 }
 
-void op_inx(CPU *cpu) {
-	(void)cpu;
+// Instruction: Increment Index X by 1
+// Execution: X = X + 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_inx(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.x += 1;
+	fetch_negative_zero(cpu, cpu->reg.x);
 }
 
-void op_iny(CPU *cpu) {
-	(void)cpu;
+// Instruction: Increment Index Y by 1
+// Execution: Y = Y + 1
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_iny(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.y += 1;
+	fetch_negative_zero(cpu, cpu->reg.y);
 }
 
-void op_jmp(CPU *cpu) {
-	(void)cpu;
+// Instruction: Jump to new location
+// Execution: PC = addr
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_jmp(CPU *cpu, u16 addr) {
+	cpu->reg.pc = addr;
 }
 
-void op_jsr(CPU *cpu) {
-	(void)cpu;
+// Instruction: Jump to Subroutine, saving return address
+// Execution: Push PC, PC = addr
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_jsr(CPU *cpu, u16 addr) {
+	stack_push16(cpu, cpu->reg.pc);
+	cpu->reg.pc = addr;
 }
 
-void op_lda(CPU *cpu) {
-	(void)cpu;
+// Instruction: Load Accumulator with Memory
+// Execution: A = M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_lda(CPU *cpu, u16 addr) {
+	cpu->reg.a = ram_read8(cpu, addr);
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_ldx(CPU *cpu) {
-	(void)cpu;
+// Instruction: Load X Index with Memory
+// Execution: X = M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_ldx(CPU *cpu, u16 addr) {
+	cpu->reg.x = ram_read8(cpu, addr);
+	fetch_negative_zero(cpu, cpu->reg.x);
 }
 
-void op_ldy(CPU *cpu) {
-	(void)cpu;
+// Instruction: Load Y Index with Memory
+// Execution: Y = M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_ldy(CPU *cpu, u16 addr) {
+	cpu->reg.y = ram_read8(cpu, addr);
+	fetch_negative_zero(cpu, cpu->reg.y);
 }
 
-void op_lsr(CPU *cpu) {
-	(void)cpu;
+// Instruction: Logical shift right
+// Execution: A|M = A|M >> 1
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_lsr(CPU *cpu, u16 addr) {
+	u8 data = cpu->reg.a;
+
+	if (opcode_lookup[cpu->opcode].mode != ADDR_ACC) {
+		data = ram_read8(cpu, addr);
+	}
+
+	flag_update(&cpu->reg.st, STATUS_C, (data & 0x01) > 0);
+
+	data >>= 1;
+
+	fetch_negative_zero(cpu, data);
+
+	if (opcode_lookup[cpu->opcode].mode == ADDR_ACC) {
+		cpu->reg.a = data;
+	} else {
+		ram_write8(cpu, addr, data);
+	}
 }
 
-void op_nop(CPU *cpu) {
+// Instruction: No operation
+// Execution: ---
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_nop(CPU *cpu, u16 addr) {
 	(void)cpu;
+	(void)addr;
 }
 
-void op_ora(CPU *cpu) {
-	(void)cpu;
+// Instruction: Logical OR Memory with Accumulator
+// Execution: A = A OR M
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_ora(CPU *cpu, u16 addr) {
+	cpu->reg.a |= ram_read8(cpu, addr);
+
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_pha(CPU *cpu) {
-	(void)cpu;
+// Instruction: Push Accumulator on Stack
+// Execution: Push A
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_pha(CPU *cpu, u16 addr) {
+	(void)addr;
+	stack_push8(cpu, cpu->reg.a);
 }
 
-void op_php(CPU *cpu) {
-	(void)cpu;
+// Instruction: Push Processor Status on Stack
+// Execution: Push S
+// Flags: C Z I D B - V N
+// 		  - - - - - - - -
+void op_php(CPU *cpu, u16 addr) {
+	(void)addr;
+	// PHP always push Status with Break and Unused bits set
+	stack_push8(cpu, cpu->reg.st | STATUS_B | STATUS_U);
 }
 
-void op_pla(CPU *cpu) {
-	(void)cpu;
+// Instruction: Pull Accumulator from Stack
+// Execution: A = Pop A
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_pla(CPU *cpu, u16 addr) {
+	(void)addr;
+	cpu->reg.a = stack_pop8(cpu);
 }
 
-void op_plp(CPU *cpu) {
-	(void)cpu;
+// Instruction: Pull Processor Status from Stack
+// Execution: S = Pop S
+// Flags: C Z I D B - V N
+// 		  * * * * * * * *
+void op_plp(CPU *cpu, u16 addr) {
+	(void)addr;
+	cpu->reg.st = stack_pop8(cpu);
 }
 
-void op_rol(CPU *cpu) {
-	(void)cpu;
+// Instruction: Rotate 1 bit Left
+// Execution: A|M = (A|M << 1) OR OLD_C
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_rol(CPU *cpu, u16 addr) {
+	u8 old_c = flag_check(cpu->reg.st, STATUS_C);
+	u16 data = cpu->reg.a;
+
+	if (opcode_lookup[cpu->opcode].mode != ADDR_ACC) {
+		data = ram_read8(cpu, addr);
+	}
+
+	data = (data << 1) | old_c;
+
+	fetch_carry(cpu, data);
+	fetch_negative_zero(cpu, data);
+
+	if (opcode_lookup[cpu->opcode].mode == ADDR_ACC) {
+		cpu->reg.a = data;
+	} else {
+		ram_write8(cpu, addr, data);
+	}
 }
 
-void op_ror(CPU *cpu) {
-	(void)cpu;
+// Instruction: Rotate 1 bit Right
+// Execution: A|M = (A|M >> 1) OR (OLD_C << 7)
+// Flags: C Z I D B - V N
+// 		  + + . . . . . +
+void op_ror(CPU *cpu, u16 addr) {
+	u8 old_c = flag_check(cpu->reg.st, STATUS_C) << 7;
+	u16 data = cpu->reg.a;
+
+	if (opcode_lookup[cpu->opcode].mode != ADDR_ACC) {
+		data = ram_read8(cpu, addr);
+	}
+
+	flag_update(&cpu->reg.st, STATUS_C, (data & 0x01) > 0);
+	data = old_c | (data >> 1);
+
+	fetch_negative_zero(cpu, data);
+
+	if (opcode_lookup[cpu->opcode].mode == ADDR_ACC) {
+		cpu->reg.a = data;
+	} else {
+		ram_write8(cpu, addr, data);
+	}
 }
 
-void op_rti(CPU *cpu) {
-	(void)cpu;
+// Instruction: Return from Interrupt
+// Execution: S = Pop S, PC = Pop PC
+// Flags: C Z I D B - V N
+// 		  * * * * * * * *
+void op_rti(CPU *cpu, u16 addr) {
+	(void)addr;
+	// NOTE: This site[1] says that the Break flag and Bit 5 are ignored when pulling
+	// the Processor Status from stack, but another site[2] says it does nothing about it
+	// [1]: https://www.masswerk.at/6502/6502_instruction_set.html
+	// [2]: https://www.nesdev.org/obelisk-6502-guide/reference.html
+	//
+	// cpu->reg.st = stack_pop8(cpu) | ~(STATUS_B | STATUS_U);
+
+	cpu->reg.st = stack_pop8(cpu);
+	cpu->reg.pc = stack_pop16(cpu);
 }
 
-void op_rts(CPU *cpu) {
-	(void)cpu;
+// Instruction: Return from Subroutine
+// Execution: PC = Pop PC + 1
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_rts(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.pc = stack_pop16(cpu);
 }
 
-void op_sbc(CPU *cpu) {
-	(void)cpu;
+// Instruction: Subtract Memory to Accumulator with Carry
+// Execution: A = A + (~M) + C
+// Flags: C Z I D B - V N
+// 		  + + . . . . + +
+void op_sbc(CPU *cpu, u16 addr) {
+	u8 m = ram_read8(cpu, addr);
+
+	// The subtraction operation is essentially a ADC but with the Memory negated:
+	// https://www.middle-engine.com/blog/posts/2020/06/23/programming-the-nes-the-6502-in-detail#subtraction-as-addition
+	cpu->reg.a = alu_add(cpu, cpu->reg.a, ~m);
 }
 
-void op_sec(CPU *cpu) {
-	(void)cpu;
+// Instruction: Set Carry flag
+// Execution: C = 1
+// Flags: C Z I D B - V N
+// 		  1 . . . . . . .
+void op_sec(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_set(cpu->reg.st, STATUS_C);
 }
 
-void op_sed(CPU *cpu) {
-	(void)cpu;
+// Instruction: Set Decimal flag
+// Execution: D = 1
+// Flags: C Z I D B - V N
+// 		  . . . 1 . . . .
+void op_sed(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_set(cpu->reg.st, STATUS_D);
 }
 
-void op_sei(CPU *cpu) {
-	(void)cpu;
+// Instruction: Set Interrupt flag
+// Execution: I = 1
+// Flags: C Z I D B - V N
+// 		  . . I . . . . .
+void op_sei(CPU *cpu, u16 addr) {
+	(void)addr;
+	flag_set(cpu->reg.st, STATUS_I);
 }
 
-void op_sta(CPU *cpu) {
-	(void)cpu;
+// Instruction: Store Accumulator in Memory
+// Execution: M = A
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_sta(CPU *cpu, u16 addr) {
+	ram_write8(cpu, addr, cpu->reg.a);
 }
 
-void op_stx(CPU *cpu) {
-	(void)cpu;
+// Instruction: Store Index X in Memory
+// Execution: M = X
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_stx(CPU *cpu, u16 addr) {
+	ram_write8(cpu, addr, cpu->reg.a);
 }
 
-void op_sty(CPU *cpu) {
-	(void)cpu;
+// Instruction: Store Index Y in Memory
+// Execution: M = Y
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_sty(CPU *cpu, u16 addr) {
+	ram_write8(cpu, addr, cpu->reg.a);
 }
 
-void op_tax(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Accumulator to Index X
+// Execution: X = A
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_tax(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.x = cpu->reg.a;
+	fetch_negative_zero(cpu, cpu->reg.x);
 }
 
-void op_tay(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Accumulator to Index Y
+// Execution: Y = A
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_tay(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.y = cpu->reg.a;
+	fetch_negative_zero(cpu, cpu->reg.y);
 }
 
-void op_tsx(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Stack Pointer to Index X
+// Execution: X = SP
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_tsx(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.x = cpu->reg.sp;
+	fetch_negative_zero(cpu, cpu->reg.x);
 }
 
-void op_txa(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Index X to Accumulator
+// Execution: A = X
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_txa(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.a = cpu->reg.x;
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_txs(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Index X to Stack Pointer
+// Execution: SP = X
+// Flags: C Z I D B - V N
+// 		  . . . . . . . .
+void op_txs(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.sp = cpu->reg.x;
 }
 
-void op_tya(CPU *cpu) {
-	(void)cpu;
+// Instruction: Transfer Index Y to Accumulator
+// Execution: A = Y
+// Flags: C Z I D B - V N
+// 		  . + . . . . . +
+void op_tya(CPU *cpu, u16 addr) {
+	(void)addr;
+
+	cpu->reg.a = cpu->reg.y;
+	fetch_negative_zero(cpu, cpu->reg.a);
 }
 
-void op_nil(CPU *cpu) {
-	op_nop(cpu);
+void op_nil(CPU *cpu, u16 addr) {
+	op_nop(cpu, addr);
 }

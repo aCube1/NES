@@ -11,11 +11,6 @@ enum CpuInterrupt {
 	INTERRUPT_BRK,   // BRK Interrupt
 };
 
-enum CpuState {
-	STATE_BRANCH = 0x01,
-	STATE_INTERRUPT = 0x02,
-};
-
 enum ProgramStatus {
 	STATUS_C = 0x01, // [0] - Carry Flag
 	STATUS_Z = 0x02, // [1] - Zero Flag
@@ -38,7 +33,6 @@ typedef struct CPU {
 		u8 y; // Y Index
 	} reg;
 
-	u8 state;
 	u8 interrupt; // Next pending interrupt
 	u8 cycles;    // Remaining cycles
 	u8 opcode;    // Current fetched opcode

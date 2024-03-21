@@ -15,10 +15,6 @@
 
 // MOS6502 Interrupt behaviors: https://www.nesdev.org/wiki/CPU_interrupts
 static void fetch_interrupt(CPU *cpu) {
-	if (!flag_check(cpu->state, STATE_INTERRUPT)) {
-		return;
-	}
-
 	// Check if IRQs are enabled
 	if ((cpu->reg.st & STATUS_I) && cpu->interrupt != INTERRUPT_NMI) {
 		cpu->interrupt = INTERRUPT_NONE;

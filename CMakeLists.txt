@@ -24,6 +24,7 @@ target_sources(
 		src/common/log.c
 		src/common/utils.c
 		src/emu/cpu.c
+		src/emu/opcodes.c
 		src/main.c
 )
 
@@ -38,6 +39,7 @@ target_sources(
 		include/common/types.h
 		include/common/utils.h
 		include/emu/cpu.h
+		include/emu/opcodes.h
 )
 
 target_compile_definitions(
